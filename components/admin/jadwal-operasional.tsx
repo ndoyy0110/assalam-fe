@@ -173,7 +173,6 @@ export default function JadwalOperasional() {
                     Simpan
                   </button>
                 </div>
-
               </div>
             )}
           </div>
