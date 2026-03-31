@@ -1,7 +1,8 @@
 "use client";
+import AdminPanelPage from "@/components/admin/admin-panel";
 
-import Panel from "@/components/admin/panel";
-
-export default function AdminPanel() {
-  return <Panel />;
+export default function Page() {
+  return (
+      <AdminPanelPage />
+  );
 }

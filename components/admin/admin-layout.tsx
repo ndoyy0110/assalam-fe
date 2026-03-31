@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 export default function AdminLayout({
   children,
   title,
@@ -7,13 +9,18 @@ export default function AdminLayout({
   children: React.ReactNode;
   title?: string;
 }) {
+  const router = useRouter();
+
   return (
     <div className="bg-[#e8f5e9] min-h-screen flex flex-col items-center">
 
       {/* HEADER */}
       <div className="w-full bg-green-900 flex flex-col items-center pb-10 pt-0">
         <div className="flex w-full max-w-3xl px-6 py-4 mt-5 rounded-3xl bg-white/10 items-center justify-between">
-          <button className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
+          <button
+            onClick={() => router.back()}
+            className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center hover:bg-white/30 transition"
+          >
             <img
               src="/images/panah-kiri.png"
               alt="Kembali"
@@ -35,12 +42,11 @@ export default function AdminLayout({
             <h1 className="text-white text-2xl font-bold tracking-wide">{title}</h1>
           </div>
         )}
-
       </div>
 
-        <div className="w-full max-w-3xl px-4 py-8">
-          {children}
-        </div>
+      <div className="w-full max-w-3xl px-4 py-8">
+        {children}
+      </div>
 
     </div>
   );
