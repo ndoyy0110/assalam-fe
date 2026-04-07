@@ -1,5 +1,5 @@
 import AdminLayout from "@/components/admin/admin-layout";
-import EditKegiatanMasjid from "@/components/admin/kegiatan-masjid/edit/page";
+import EditKegiatanMasjid from "@/components/admin/kegiatan-masjid/edit-kegiatan-masjid";
 
 export default function Page() {
   return (
