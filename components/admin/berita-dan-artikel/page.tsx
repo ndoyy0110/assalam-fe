@@ -102,7 +102,7 @@ export default function BeritaArtikelPage() {
 
       <div>
         <button
-          onClick={() => router.push("/admin/berita-dan-artikel/add-berita-dan-artikel")}
+          onClick={() => router.push("/admin/berita-dan-artikel/add")}
           className="bg-green-500 hover:bg-green-600 text-white text-sm font-semibold px-5 py-2.5 rounded-full transition shadow-sm"
         >
           Tambah Berita dan Artikel

@@ -45,7 +45,7 @@ export default function AddBeritaArtikel() {
       formData.append("summary", form.summary);
       formData.append("content", form.content);
       formData.append("status", status);
-      formData.append("authorId", "1"); // WAJIB (sementara hardcode)
+      formData.append("authorId", "1"); 
 
       if (gambar) {
         formData.append("image", gambar);
