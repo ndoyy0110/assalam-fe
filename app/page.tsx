@@ -23,6 +23,25 @@ interface OperationalHour {
   isClosed: boolean;
 }
 
+interface Kegiatan {
+  id: number;
+  title: string;
+  description: string;
+  startTime: string;
+  endTime: string;
+}
+
+interface Artikel {
+  id: number;
+  title: string;
+  summary: string | null;
+  content: string;
+  imageUrl: string | null;
+  status: string;
+  author: { name: string };
+  createdAt: string;
+}
+
 const PRAYER_LABELS = [
   { key: "Fajr",    label: "Subuh",   icon: "🌅" },
   { key: "Dhuhr",   label: "Dzuhur",  icon: "☀️" },
@@ -35,6 +54,19 @@ const formatTime = (timeStr: string) => {
   if (!timeStr) return "--:--";
   return timeStr.slice(0, 5);
 };
+
+const formatJam = (iso: string): string => {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  const h = d.getUTCHours().toString().padStart(2, "0");
+  const m = d.getUTCMinutes().toString().padStart(2, "0");
+  return `${h}:${m}`;
+};
+
+const formatTanggal = (iso: string) =>
+  new Date(iso).toLocaleDateString("id-ID", {
+    day: "numeric", month: "long", year: "numeric",
+  });
 
 const getNextPrayer = (times: PrayerTimes, now: Date) => {
   const prayers = [
@@ -66,6 +98,33 @@ const getHijriDate = () => {
   }
 };
 
+const NEARBY_MOSQUES = [
+  {
+    name: "Islamisches Zentrum Wien (IZW)",
+    rating: 4.8,
+    desc: "Masjid terbesar di Austria dengan kubah megah",
+    address: "Am Brünnerfeld 4, 1210 Wien (Floridsdorf)",
+    distance: "14.6 km",
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Islamisches_Zentrum_Wien.jpg/640px-Islamisches_Zentrum_Wien.jpg",
+  },
+  {
+    name: "ATIB Moschee Wien XII",
+    rating: 4.5,
+    desc: "Masjid komunitas Turki di distrik Meidling",
+    address: "Amatgasse 4, 1120 Wien (Meidling)",
+    distance: "0.9 km",
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Sultan_Ahmed_mosq.jpg/640px-Sultan_Ahmed_mosq.jpg",
+  },
+  {
+    name: "Masjid Al-Rahman Wien",
+    rating: 4.6,
+    desc: "Pusat komunitas Muslim Arab di Wien ke-5",
+    address: "Margaretengürtel 126, 1050 Wien (Margareten)",
+    distance: "3.2 km",
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Blue_Mosque_2.jpg/640px-Blue_Mosque_2.jpg",
+  },
+];
+
 export default function HomePage() {
   const router = useRouter();
   const [now, setNow] = useState(new Date());
@@ -73,14 +132,16 @@ export default function HomePage() {
   const [loadingPrayer, setLoadingPrayer] = useState(true);
   const [opSchedule, setOpSchedule] = useState<OperationalHour[]>([]);
   const [loadingOp, setLoadingOp] = useState(true);
+  const [kegiatan, setKegiatan] = useState<Kegiatan[]>([]);
+  const [loadingKegiatan, setLoadingKegiatan] = useState(true);
+  const [artikel, setArtikel] = useState<Artikel[]>([]);
+  const [loadingArtikel, setLoadingArtikel] = useState(true);
 
-  // Jam berjalan
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch jadwal sholat
   useEffect(() => {
     const fetchPrayer = async () => {
       try {
@@ -99,13 +160,31 @@ export default function HomePage() {
     fetchPrayer();
   }, []);
 
-  // Fetch jadwal operasional dari API
   useEffect(() => {
     fetch(`${API_URL}/api/operational-hours`)
       .then((r) => r.json())
       .then((json) => setOpSchedule(json.data || []))
       .catch(() => {})
       .finally(() => setLoadingOp(false));
+  }, []);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/activities`)
+      .then((r) => r.json())
+      .then((json) => setKegiatan((json.data || []).slice(0, 6)))
+      .catch(() => {})
+      .finally(() => setLoadingKegiatan(false));
+  }, []);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/news`)
+      .then((r) => r.json())
+      .then((json) => {
+        const published = (json.data || []).filter((a: Artikel) => a.status === "PUBLISHED");
+        setArtikel(published.slice(0, 5));
+      })
+      .catch(() => {})
+      .finally(() => setLoadingArtikel(false));
   }, []);
 
   const clockStr = now.toTimeString().slice(0, 8).replace(/:/g, ".");
@@ -115,7 +194,6 @@ export default function HomePage() {
   const hijriStr = getHijriDate();
   const nextPrayer = prayerTimes ? getNextPrayer(prayerTimes, now) : null;
 
-  // Status buka/tutup berdasarkan data API
   const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jum'at", "Sabtu"];
   const todayName = dayNames[now.getDay()];
   const todaySchedule = opSchedule.find((s) => s.day === todayName);
@@ -127,11 +205,14 @@ export default function HomePage() {
     isMasjidOpen = nowMinutes >= oh * 60 + om && nowMinutes < ch * 60 + cm;
   }
 
+  const featuredArtikel = artikel[0] ?? null;
+  const otherArtikel = artikel.slice(1, 5);
+
   return (
-    <div className="min-h-screen bg-[#e8f5e9] flex flex-col">
+    <div className="min-h-screen bg-[#F0FDF4] flex flex-col">
 
       {/* ── HERO SECTION ── */}
-      <div className="relative w-full min-h-[480px] flex flex-col">
+      <div className="relative w-full flex flex-col" style={{ minHeight: "480px" }}>
         <img
           src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Blue_Mosque_2.jpg/1280px-Blue_Mosque_2.jpg"
           alt="Masjid As-Salam"
@@ -142,23 +223,17 @@ export default function HomePage() {
         {/* NAV */}
         <div className="relative z-10 flex w-full max-w-6xl mx-auto px-6 py-4 mt-5 rounded-3xl bg-white/10 items-center justify-center">
           <div className="flex items-center gap-8">
-            <span
-              className="text-white text-sm font-bold cursor-pointer hover:text-green-300 transition"
-              onClick={() => router.push("/user/berita-dan-artikel")}
-            >
+            <span className="text-white text-sm font-bold cursor-pointer hover:text-green-300 transition" onClick={() => router.push("/user/berita-dan-artikel")}>
               BERITA DAN ARTIKEL
             </span>
-            <span
-              className="text-white text-sm font-bold cursor-pointer hover:text-green-300 transition"
-              onClick={() => router.push("/user/kegiatan-masjid")}
-            >
+            <span className="text-white text-sm font-bold cursor-pointer hover:text-green-300 transition" onClick={() => router.push("/user/kegiatan-masjid")}>
               KEGIATAN MASJID
             </span>
           </div>
         </div>
 
         {/* HERO CONTENT */}
-        <div className="relative z-10 flex-1 flex flex-col justify-end px-6 sm:px-12 pb-12 max-w-2xl">
+        <div className="relative z-10 flex-1 flex flex-col m-20 justify-end px-6 sm:px-16 pb-16 pt-8 max-w-2xl">
           <div className="flex items-center gap-2 mb-4">
             <div className="w-6 h-0.5 bg-green-400" />
             <span className="text-green-300 text-xs font-semibold tracking-widest uppercase">
@@ -168,12 +243,8 @@ export default function HomePage() {
           <h1 className="text-white text-4xl sm:text-5xl font-extrabold leading-tight mb-3 drop-shadow">
             Masjid As-Salam
           </h1>
-          <p className="text-green-300 text-base font-bold mb-4">
-            Merajut Ukhuwah, Menebarkan Kedamaian.
-          </p>
-          <p className="text-white text-2xl mb-4 leading-loose">
-            بِسۡمِ ٱللَّهِ ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ
-          </p>
+          <p className="text-green-300 text-base font-bold mb-4">Merajut Ukhuwah, Menebarkan Kedamaian.</p>
+          <p className="text-white text-2xl mb-4 leading-loose">بِسۡمِ ٱللَّهِ ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ</p>
           <p className="text-white/80 text-sm leading-relaxed max-w-sm">
             Selamat datang di <span className="font-bold text-white">Masjid As-Salam</span>, satu-satunya
             masjid komunitas Indonesia di Vienna. Pusat ibadah, silaturahmi, dan kegiatan
@@ -183,13 +254,12 @@ export default function HomePage() {
       </div>
 
       {/* ── JADWAL SHOLAT ── */}
-      <div className="w-full max-w-2xl mx-auto px-4 py-10 flex flex-col gap-6">
+      <div className="w-full max-w-2xl mx-auto m-20 px-4 py-12 flex flex-col gap-6">
         <div className="text-center flex flex-col gap-1">
           <p className="text-green-600 text-xs font-bold tracking-widest uppercase">Jadwal Sholat</p>
           <h2 className="text-gray-800 text-2xl font-bold">Waktu Sholat Hari Ini</h2>
         </div>
 
-        {/* Card jam & next prayer */}
         <div className="bg-green-600 rounded-2xl px-5 py-5 flex items-center justify-between gap-4 shadow-md">
           <div className="flex flex-col gap-0.5">
             <p className="text-white text-xs font-semibold">{dateStr}</p>
@@ -211,7 +281,6 @@ export default function HomePage() {
           )}
         </div>
 
-        {/* Grid waktu sholat */}
         {loadingPrayer ? (
           <div className="flex justify-center py-6">
             <div className="animate-spin w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full" />
@@ -225,19 +294,12 @@ export default function HomePage() {
               const isNext = nextPrayer?.label === p.label;
               const isPast = pMin < nowMinutes && !isNext;
               return (
-                <div
-                  key={p.key}
-                  className={`flex flex-col items-center gap-1 rounded-2xl py-4 px-2 shadow-sm transition ${
-                    isNext ? "bg-green-500 text-white" : isPast ? "bg-white text-gray-300" : "bg-white text-gray-700"
-                  }`}
-                >
+                <div key={p.key} className={`flex flex-col items-center gap-1 rounded-2xl py-4 px-2 shadow-sm transition ${
+                  isNext ? "bg-green-500 text-white" : isPast ? "bg-white text-gray-300" : "bg-white text-gray-700"
+                }`}>
                   <span className="text-xl">{p.icon}</span>
-                  <span className={`text-xs font-semibold ${isNext ? "text-white" : isPast ? "text-gray-300" : "text-gray-500"}`}>
-                    {p.label}
-                  </span>
-                  <span className={`text-sm font-bold ${isNext ? "text-white" : isPast ? "text-gray-300" : "text-gray-800"}`}>
-                    {timeVal}
-                  </span>
+                  <span className={`text-xs font-semibold ${isNext ? "text-white" : isPast ? "text-gray-300" : "text-gray-500"}`}>{p.label}</span>
+                  <span className={`text-sm font-bold ${isNext ? "text-white" : isPast ? "text-gray-300" : "text-gray-800"}`}>{timeVal}</span>
                 </div>
               );
             })}
@@ -246,70 +308,346 @@ export default function HomePage() {
       </div>
 
       {/* ── JADWAL OPERASIONAL ── */}
-      <div className="w-full max-w-2xl mx-auto px-4 py-10 flex flex-col gap-6">
-        <div className="text-center flex flex-col gap-1">
-          <p className="text-green-600 text-xs font-bold tracking-widest uppercase">Jadwal Operasional</p>
-          <h2 className="text-gray-800 text-2xl font-bold">Jam Buka Masjid</h2>
-        </div>
-
-        {/* Status buka/tutup */}
-        <div className="flex justify-center">
-          <div className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold ${
-            isMasjidOpen ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
-          }`}>
-            <span className={`w-2.5 h-2.5 rounded-full ${isMasjidOpen ? "bg-green-500 animate-pulse" : "bg-gray-400"}`} />
-            {isMasjidOpen ? "Masjid Saat Ini Buka" : "Masjid Saat Ini Tutup"}
-          </div>
-        </div>
-
-        {/* Tabel jadwal */}
-        <div className="rounded-2xl overflow-hidden shadow-sm">
-          <div className="bg-green-400 px-5 py-4">
-            <h3 className="text-white font-bold text-base">Jadwal Operasional Mingguan</h3>
+      <section className="bg-white w-full">
+        <div className="w-full max-w-2xl mx-auto m-20 px-4 py-12 flex flex-col gap-6">
+          <div className="text-center flex flex-col gap-1">
+            <p className="text-green-600 text-xs font-bold tracking-widest uppercase">Jadwal Operasional</p>
+            <h2 className="text-gray-800 text-2xl font-bold">Jam Buka Masjid</h2>
           </div>
 
-          {loadingOp ? (
-            <div className="bg-white p-10 text-center">
-              <div className="animate-spin inline-block w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full" />
+          <div className="flex justify-center">
+            <div className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold ${
+              isMasjidOpen ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+            }`}>
+              <span className={`w-2.5 h-2.5 rounded-full ${isMasjidOpen ? "bg-green-500 animate-pulse" : "bg-gray-400"}`} />
+              {isMasjidOpen ? "Masjid Saat Ini Buka" : "Masjid Saat Ini Tutup"}
             </div>
-          ) : opSchedule.length === 0 ? (
-            <div className="bg-white p-10 text-center text-gray-400 text-sm">
-              Jadwal belum tersedia.
+          </div>
+
+          <div className="rounded-2xl overflow-hidden shadow-sm">
+            <div className="bg-green-400 px-5 py-4">
+              <h3 className="text-white font-bold text-base">Jadwal Operasional Mingguan</h3>
             </div>
-          ) : (
-            opSchedule.map((item, idx) => {
-              const isToday = item.day === todayName;
-              return (
-                <div
-                  key={item.id}
-                  className={`flex items-center justify-between px-5 py-4 ${
+            {loadingOp ? (
+              <div className="bg-white p-10 text-center">
+                <div className="animate-spin inline-block w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full" />
+              </div>
+            ) : opSchedule.length === 0 ? (
+              <div className="bg-white p-10 text-center text-gray-400 text-sm">Jadwal belum tersedia.</div>
+            ) : (
+              opSchedule.map((item, idx) => {
+                const isToday = item.day === todayName;
+                return (
+                  <div key={item.id} className={`flex items-center justify-between px-5 py-4 ${
                     isToday ? "bg-green-50" : "bg-white"
-                  } ${idx < opSchedule.length - 1 ? "border-b border-gray-100" : ""}`}
-                >
-                  <div className="flex items-center gap-2">
-                    {isToday && <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />}
-                    <span className={`text-sm ${isToday ? "font-bold text-gray-800" : "text-gray-600"}`}>
-                      {item.day}
-                    </span>
-                    {isToday && (
-                      <span className="text-[10px] bg-green-100 text-green-600 font-bold px-2 py-0.5 rounded-full">
-                        HARI INI
+                  } ${idx < opSchedule.length - 1 ? "border-b border-gray-100" : ""}`}>
+                    <div className="flex items-center gap-2">
+                      {isToday && <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />}
+                      <span className={`text-sm ${isToday ? "font-bold text-gray-800" : "text-gray-600"}`}>{item.day}</span>
+                      {isToday && (
+                        <span className="text-[10px] bg-green-100 text-green-600 font-bold px-2 py-0.5 rounded-full">HARI INI</span>
+                      )}
+                    </div>
+                    {item.isClosed ? (
+                      <span className="text-sm font-semibold text-red-500">Tutup</span>
+                    ) : (
+                      <span className={`text-sm font-semibold ${isToday ? "text-green-600" : "text-green-500"}`}>
+                        {item.open?.slice(0, 5)} – {item.close?.slice(0, 5)}
                       </span>
                     )}
                   </div>
-                  {item.isClosed ? (
-                    <span className="text-sm font-semibold text-red-500">Tutup</span>
-                  ) : (
-                    <span className={`text-sm font-semibold ${isToday ? "text-green-600" : "text-green-500"}`}>
-                      {item.open?.slice(0, 5)} – {item.close?.slice(0, 5)}
-                    </span>
-                  )}
+                );
+              })
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* ── KEGIATAN MASJID ── */}
+      <div className="w-full max-w-4xl mx-auto m-20 px-4 py-12 flex flex-col gap-6">
+        <div className="text-center flex flex-col gap-1">
+          <p className="text-green-600 text-xs font-bold tracking-widest uppercase">Kegiatan Masjid</p>
+          <h2 className="text-gray-800 text-2xl font-bold">Program dan Kegiatan</h2>
+        </div>
+
+        {/* Card sinkron Google Calendar */}
+        <div className="bg-white rounded-2xl p-8 flex flex-col items-center gap-3 shadow-sm text-center max-w-md mx-auto w-full">
+          <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center">
+            <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <rect x="3" y="4" width="18" height="18" rx="2" strokeWidth={2} />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4" />
+            </svg>
+          </div>
+          <p className="font-bold text-gray-800">Sinkronkan ke Google Calendar</p>
+          <p className="text-xs text-green-600 leading-relaxed max-w-xs">
+            Masuk dengan akun Google untuk menambahkan kegiatan masjid ke kalender Anda secara otomatis.
+          </p>
+          
+          <a  href="https://calendar.google.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 border border-gray-200 rounded-full px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            Masuk dengan Google
+          </a>
+        </div>
+
+        {/* Grid kegiatan */}
+        {loadingKegiatan ? (
+          <div className="flex justify-center py-6">
+            <div className="animate-spin w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {kegiatan.map((item) => (
+              <div key={item.id} className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col gap-2 shadow-sm">
+                <h3 className="font-bold text-sm text-gray-800">{item.title}</h3>
+                <div className="flex items-center gap-1 text-gray-500 text-xs">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10" strokeWidth={2} />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6l3 3" />
+                  </svg>
+                  {formatJam(item.startTime)} - {formatJam(item.endTime)}
                 </div>
-              );
-            })
-          )}
+                <div className="flex items-center gap-1 text-gray-500 text-xs">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <rect x="3" y="4" width="18" height="18" rx="2" strokeWidth={2} />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 2v4M8 2v4M3 10h18" />
+                  </svg>
+                  {new Date(item.startTime).toLocaleDateString("id-ID", { weekday: "long", timeZone: "UTC" })}
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-600 mb-1">Deskripsi</p>
+                  <p className="text-xs text-gray-500 leading-relaxed line-clamp-3">{item.description}</p>
+                </div>
+                <button className="mt-auto w-full bg-green-500 hover:bg-green-600 text-white text-xs font-semibold rounded-full py-2 transition">
+                  Buat Pengingat
+                </button>
+              </div>
+            ))}
+            {/* Empty placeholders */}
+            {Array.from({ length: Math.max(0, 6 - kegiatan.length) }).map((_, i) => (
+              <div key={`empty-k-${i}`} className="bg-white border border-gray-100 rounded-2xl min-h-[180px]" />
+            ))}
+          </div>
+        )}
+
+        {/* Tombol lihat semua */}
+        <div className="flex justify-center">
+          <button
+            onClick={() => router.push("/user/kegiatan-masjid")}
+            className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold px-6 py-3 rounded-full transition shadow-sm"
+          >
+            Lihat Semua Kegiatan
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
         </div>
       </div>
+
+      {/* ── BERITA DAN ARTIKEL ── */}
+      <section className="bg-white w-full">
+        <div className="w-full max-w-4xl mx-auto m-20 px-4 py-12 flex flex-col gap-6">
+          <div className="text-center flex flex-col gap-1">
+            <p className="text-green-600 text-xs font-bold tracking-widest uppercase">Berita dan Artikel</p>
+            <h2 className="text-gray-800 text-2xl font-bold">Kabar Terbaru dari Masjid</h2>
+          </div>
+
+          {loadingArtikel ? (
+            <div className="flex justify-center py-6">
+              <div className="animate-spin w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full" />
+            </div>
+          ) : (
+            <>
+              {/* Featured artikel */}
+              {featuredArtikel && (
+                <div
+                  className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm flex flex-col sm:flex-row cursor-pointer hover:shadow-md transition"
+                  onClick={() => router.push(`/user/berita-dan-artikel/${featuredArtikel.id}`)}
+                >
+                  {featuredArtikel.imageUrl && (
+                    <img
+                      src={featuredArtikel.imageUrl}
+                      alt={featuredArtikel.title}
+                      className="w-full sm:w-64 h-52 sm:h-auto object-cover flex-shrink-0"
+                    />
+                  )}
+                  <div className="p-6 flex flex-col gap-2 justify-center">
+                    <h3 className="text-lg font-bold text-gray-800 leading-snug">{featuredArtikel.title}</h3>
+                    <p className="text-xs text-gray-400">{formatTanggal(featuredArtikel.createdAt)}</p>
+                    {featuredArtikel.summary && (
+                      <p className="text-sm text-gray-500 leading-relaxed line-clamp-4">{featuredArtikel.summary}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Grid artikel lainnya */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {otherArtikel.map((item) => (
+                  <div
+                    key={item.id}
+                    className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm flex flex-col cursor-pointer hover:shadow-md transition"
+                    onClick={() => router.push(`/user/berita-dan-artikel/${item.id}`)}
+                  >
+                    {item.imageUrl && (
+                      <img src={item.imageUrl} alt={item.title} className="w-full h-28 object-cover" />
+                    )}
+                    <div className="p-3 flex flex-col gap-1">
+                      <h3 className="text-xs font-bold text-gray-800 leading-snug line-clamp-2">{item.title}</h3>
+                      <p className="text-[10px] text-gray-400">{formatTanggal(item.createdAt)}</p>
+                      {item.summary && (
+                        <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-3">{item.summary}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {/* Empty placeholders */}
+                {Array.from({ length: Math.max(0, 4 - otherArtikel.length) }).map((_, i) => (
+                  <div key={`empty-a-${i}`} className="bg-white border border-gray-100 rounded-2xl min-h-[160px]" />
+                ))}
+              </div>
+            </>
+          )}
+
+          <div className="flex justify-center">
+            <button
+              onClick={() => router.push("/user/berita-dan-artikel")}
+              className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold px-6 py-3 rounded-full transition shadow-sm"
+            >
+              Lihat Semua Berita dan Artikel
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── LOKASI MASJID ── */}
+      <div className="w-full max-w-4xl m-20 mx-auto px-4 py-12 flex flex-col gap-6">
+        <div className="text-center flex flex-col gap-1">
+          <p className="text-green-600 text-xs font-bold tracking-widest uppercase">Lokasi Masjid</p>
+          <h2 className="text-gray-800 text-2xl font-bold">Temukan Kami</h2>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-4">
+          {/* Peta embed */}
+          <div className="flex-1 rounded-2xl overflow-hidden shadow-sm min-h-[280px] relative">
+            <iframe
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2660.4!2d16.334!3d48.175!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x476da82c8b4b4b4b%3A0x1!2sMalfattigasse+18%2C+1120+Wien!5e0!3m2!1sid!2sat!4v1234567890"
+              width="100%"
+              height="100%"
+              style={{ border: 0, minHeight: "280px" }}
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              className="absolute inset-0 w-full h-full"
+            />
+            
+            {/* Tombol buka Google Maps */}
+            < a href="https://maps.google.com/?q=Malfattigasse+18,+1120+Wien"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-white/90 backdrop-blur-sm border border-gray-200 rounded-full px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-white transition shadow"
+            >
+              <svg className="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              Buka di Google Maps
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+          </div>
+
+          {/* Info kontak & petunjuk arah */}
+          <div className="flex flex-col gap-4 w-full sm:w-72 flex-shrink-0">
+            {/* Informasi Kontak */}
+            <div className="bg-white rounded-2xl p-5 shadow-sm flex flex-col gap-3">
+              <h3 className="font-bold text-gray-800 text-sm">Informasi Kontak</h3>
+              <div className="flex items-start gap-2 text-xs text-gray-600">
+                <svg className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span>Malfattigasse 18, Erdgeschoss 1120 Wien (Meidling), Austria</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-gray-600">
+                <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                </svg>
+                <span>(255) 352-3258</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-gray-600">
+                <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <span>info@wapena.org</span>
+              </div>
+            </div>
+
+            {/* Petunjuk Arah */}
+            <div className="bg-green-600 rounded-2xl p-5 flex flex-col gap-3">
+              <h3 className="font-bold text-white text-sm">Petunjuk Arah</h3>
+              <div className="flex flex-col gap-2 text-xs text-green-100">
+                <p><span className="font-bold text-white">U-Bahn U4</span> — Stasiun Meidling Hauptstraße, jalan kaki ±5 menit</p>
+                <p><span className="font-bold text-white">U-Bahn U6</span> — Stasiun Längenfeldgasse, jalan kaki ±8 menit</p>
+                <p><span className="font-bold text-white">Bus 59A</span> — Halte Malfattigasse (tepat di depan masjid)</p>
+                <p>Parkir tersedia di sekitar Malfattigasse dan Gasgasse</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* ── MASJID TERDEKAT ── */}
+      <section className="bg-white w-full">
+        <div className="w-full max-w-4xl m-20 mx-auto px-4 py-12 flex flex-col gap-6">
+          <div className="text-center flex flex-col gap-1">
+            <p className="text-green-600 text-xs font-bold tracking-widest uppercase">Masjid Terdekat</p>
+            <h2 className="text-gray-800 text-2xl font-bold">Masjid Lain di Sekitar</h2>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {NEARBY_MOSQUES.map((mosque) => (
+              <div key={mosque.name} className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm flex flex-col">
+                <div className="relative">
+                  <img src={mosque.image} alt={mosque.name} className="w-full h-44 object-cover" />
+                  <span className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm text-xs font-semibold text-gray-700 px-2 py-1 rounded-full flex items-center gap-1">
+                    <svg className="w-3 h-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    </svg>
+                    {mosque.distance}
+                  </span>
+                </div>
+                <div className="p-4 flex flex-col gap-1.5">
+                  <h3 className="text-sm font-bold text-gray-800">{mosque.name}</h3>
+                  <div className="flex items-center gap-1">
+                    <span className="text-yellow-400 text-xs">★</span>
+                    <span className="text-xs text-gray-500">{mosque.rating}</span>
+                  </div>
+                  <p className="text-xs text-green-600 font-medium">{mosque.desc}</p>
+                  <div className="flex items-start gap-1 text-xs text-gray-500 mt-1">
+                    <svg className="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    </svg>
+                    <span>{mosque.address}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* FOOTER */}
       <footer className="w-full bg-green-900 mt-auto">
@@ -324,9 +662,7 @@ export default function HomePage() {
                 <span className="text-white text-lg font-bold">Wapena</span>
               </div>
               <p className="text-green-200 text-sm">Warga Pengajian Austria</p>
-              <p className="text-green-200 text-sm leading-relaxed">
-                Forum Saling Asih & Asuh Komunitas<br />Muslim Indonesia di Austria
-              </p>
+              <p className="text-green-200 text-sm leading-relaxed">Forum Saling Asih & Asuh Komunitas<br />Muslim Indonesia di Austria</p>
               <p className="text-sm">
                 <span className="text-green-400 font-semibold">Address: </span>
                 <span className="text-green-200">Masjid As-Salam, Malfattigasse 18 – Lantai Dasar, 1120 Wina</span>
@@ -363,7 +699,6 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
-
     </div>
   );
 }

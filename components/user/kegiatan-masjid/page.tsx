@@ -15,7 +15,6 @@ type Kegiatan = {
 
 const ITEMS_PER_PAGE = 6;
 
-// Konsisten pakai UTC agar cocok dengan data yang dikirim sebagai UTC
 const formatJam = (iso: string): string => {
   if (!iso) return "-";
   const d = new Date(iso);
