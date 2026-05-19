@@ -43,11 +43,11 @@ interface Artikel {
 }
 
 const PRAYER_LABELS = [
-  { key: "Fajr",    label: "Subuh",   icon: "🌅" },
-  { key: "Dhuhr",   label: "Dzuhur",  icon: "☀️" },
-  { key: "Asr",     label: "Ashar",   icon: "⛅" },
-  { key: "Maghrib", label: "Maghrib", icon: "🌇" },
-  { key: "Isha",    label: "Isya",    icon: "🌙" },
+  { key: "Fajr",    label: "Subuh",   icon: "/images/Icon1.png" },
+  { key: "Dhuhr",   label: "Dzuhur",  icon: "/images/Icon2.png" },
+  { key: "Asr",     label: "Ashar",   icon: "/images/Icon3.png" },
+  { key: "Maghrib", label: "Maghrib", icon: "/images/Icon4.png" },
+  { key: "Isha",    label: "Isya",    icon: "/images/Icon5.png" },
 ];
 
 const formatTime = (timeStr: string) => {
@@ -100,28 +100,28 @@ const getHijriDate = () => {
 
 const NEARBY_MOSQUES = [
   {
-    name: "Islamisches Zentrum Wien (IZW)",
-    rating: 4.8,
-    desc: "Masjid terbesar di Austria dengan kubah megah",
-    address: "Am Brünnerfeld 4, 1210 Wien (Floridsdorf)",
-    distance: "14.6 km",
-    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Islamisches_Zentrum_Wien.jpg/640px-Islamisches_Zentrum_Wien.jpg",
+    name: "Masjid Ansor",
+    rating: 4.4,
+    desc: "Masjid komunitas di distrik Brigittenau",
+    address: "Masjid komunitas di distrik Brigittenau",
+    distance: "0.3 km",
+    image: "images/ansor.png",
   },
   {
-    name: "ATIB Moschee Wien XII",
-    rating: 4.5,
-    desc: "Masjid komunitas Turki di distrik Meidling",
-    address: "Amatgasse 4, 1120 Wien (Meidling)",
-    distance: "0.9 km",
-    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Sultan_Ahmed_mosq.jpg/640px-Sultan_Ahmed_mosq.jpg",
+    name: "Masjid Ar-Rasheed",
+    rating: 4.9,
+    desc: "Masjid sunnah yang tenang dan ramah",
+    address: "Hellwagstraße 3/2, 1200 Wien",
+    distance: "0.7 km",
+    image: "images/rasheed.png",
   },
   {
-    name: "Masjid Al-Rahman Wien",
+    name: "Ridvan Moschee Camii",
     rating: 4.6,
-    desc: "Pusat komunitas Muslim Arab di Wien ke-5",
-    address: "Margaretengürtel 126, 1050 Wien (Margareten)",
-    distance: "3.2 km",
-    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Blue_Mosque_2.jpg/640px-Blue_Mosque_2.jpg",
+    desc: "Masjid Turki buka setiap hari 04.20–22.00",
+    address: "Dresdner Str. 51, 1200 Wien",
+    distance: "0.7 km",
+    image: "images/ridvan.png",
   },
 ];
 
@@ -214,7 +214,7 @@ export default function HomePage() {
       {/* ── HERO SECTION ── */}
       <div className="relative w-full flex flex-col" style={{ minHeight: "480px" }}>
         <img
-          src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Blue_Mosque_2.jpg/1280px-Blue_Mosque_2.jpg"
+          src="images/foto1.jpeg"
           alt="Masjid As-Salam"
           className="absolute inset-0 w-full h-full object-cover"
         />
@@ -256,12 +256,12 @@ export default function HomePage() {
       {/* ── JADWAL SHOLAT ── */}
       <div className="w-full max-w-2xl mx-auto m-20 px-4 py-12 flex flex-col gap-6">
         <div className="text-center flex flex-col gap-1">
-          <p className="text-green-600 text-xs font-bold tracking-widest uppercase">Jadwal Sholat</p>
+          <p className="text-[#22C55E] text-xs font-bold tracking-widest uppercase">Jadwal Sholat</p>
           <h2 className="text-gray-800 text-2xl font-bold">Waktu Sholat Hari Ini</h2>
         </div>
 
-        <div className="bg-green-600 rounded-2xl px-5 py-5 flex items-center justify-between gap-4 shadow-md">
-          <div className="flex flex-col gap-0.5">
+        <div className="bg-[#22C55E] rounded-2xl px-5 py-5 flex items-center justify-between gap-4 shadow-md">
+            <div className="bg-green-300/30 backdrop-blur-md rounded-xl px-3 py-2 text-right border border-white/20 text-start">              <p className="text-green-100 text-[10px]">Sholat Berikutnya</p>
             <p className="text-white text-xs font-semibold">{dateStr}</p>
             <p className="text-green-200 text-xs">{hijriStr}</p>
           </div>
@@ -273,8 +273,7 @@ export default function HomePage() {
             <span className="text-white text-2xl font-bold tracking-widest">{clockStr}</span>
           </div>
           {nextPrayer && (
-            <div className="bg-green-500 rounded-xl px-3 py-2 text-right">
-              <p className="text-green-100 text-[10px]">Sholat Berikutnya</p>
+            <div className="bg-green-300/30 backdrop-blur-md rounded-xl px-3 py-2 text-right border border-white/20">              <p className="text-green-100 text-[10px]">Sholat Berikutnya</p>
               <p className="text-white text-sm font-bold">{nextPrayer.label} - {nextPrayer.time}</p>
               <p className="text-green-200 text-[10px]">{nextPrayer.diff}</p>
             </div>
@@ -287,22 +286,63 @@ export default function HomePage() {
           </div>
         ) : (
           <div className="grid grid-cols-5 gap-3">
-            {PRAYER_LABELS.map((p) => {
-              const timeVal = prayerTimes ? formatTime(prayerTimes[p.key as keyof PrayerTimes]) : "--:--";
-              const [h, m] = timeVal.split(":").map(Number);
-              const pMin = h * 60 + m;
-              const isNext = nextPrayer?.label === p.label;
-              const isPast = pMin < nowMinutes && !isNext;
-              return (
-                <div key={p.key} className={`flex flex-col items-center gap-1 rounded-2xl py-4 px-2 shadow-sm transition ${
-                  isNext ? "bg-green-500 text-white" : isPast ? "bg-white text-gray-300" : "bg-white text-gray-700"
-                }`}>
-                  <span className="text-xl">{p.icon}</span>
-                  <span className={`text-xs font-semibold ${isNext ? "text-white" : isPast ? "text-gray-300" : "text-gray-500"}`}>{p.label}</span>
-                  <span className={`text-sm font-bold ${isNext ? "text-white" : isPast ? "text-gray-300" : "text-gray-800"}`}>{timeVal}</span>
-                </div>
-              );
-            })}
+          {PRAYER_LABELS.map((p) => {
+            const timeVal = prayerTimes
+              ? formatTime(prayerTimes[p.key as keyof PrayerTimes])
+              : "--:--";
+
+            const [h, m] = timeVal.split(":").map(Number);
+            const pMin = h * 60 + m;
+
+            const isNext = nextPrayer?.label === p.label;
+            const isPast = pMin < nowMinutes && !isNext;
+
+            return (
+              <div
+                key={p.key}
+                className={`flex flex-col items-center gap-2 rounded-2xl py-4 px-3 shadow-sm transition ${
+                  isNext
+                    ? "bg-green-500 text-white"
+                    : isPast
+                    ? "bg-white text-gray-300"
+                    : "bg-white text-gray-700"
+                }`}
+              >
+                {/* ICON IMAGE */}
+                <img
+                  src={p.icon}
+                  alt={p.label}
+                  className="w-10 h-10 object-contain"
+                />
+
+                {/* LABEL */}
+                <span
+                  className={`text-xs font-semibold ${
+                    isNext
+                      ? "text-white"
+                      : isPast
+                      ? "text-gray-300"
+                      : "text-gray-500"
+                  }`}
+                >
+                  {p.label}
+                </span>
+
+                {/* TIME */}
+                <span
+                  className={`text-sm font-bold ${
+                    isNext
+                      ? "text-white"
+                      : isPast
+                      ? "text-gray-300"
+                      : "text-gray-800"
+                  }`}
+                >
+                  {timeVal}
+                </span>
+              </div>
+            );
+          })}
           </div>
         )}
       </div>
@@ -317,9 +357,9 @@ export default function HomePage() {
 
           <div className="flex justify-center">
             <div className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold ${
-              isMasjidOpen ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+              isMasjidOpen ? "bg-[#22C55ED9] text-[#ffffffff]" : "bg-[#EF4444D9] text-[#FFFFFFFF]"
             }`}>
-              <span className={`w-2.5 h-2.5 rounded-full ${isMasjidOpen ? "bg-green-500 animate-pulse" : "bg-gray-400"}`} />
+              <span className={`w-2.5 h-2.5 rounded-full ${isMasjidOpen ? "bg-[#BBF7D0] animate-pulse" : "bg-[#FFC9C9]"}`} />
               {isMasjidOpen ? "Masjid Saat Ini Buka" : "Masjid Saat Ini Tutup"}
             </div>
           </div>
@@ -542,7 +582,7 @@ export default function HomePage() {
           {/* Peta embed */}
           <div className="flex-1 rounded-2xl overflow-hidden shadow-sm min-h-[280px] relative">
             <iframe
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2660.4!2d16.334!3d48.175!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x476da82c8b4b4b4b%3A0x1!2sMalfattigasse+18%2C+1120+Wien!5e0!3m2!1sid!2sat!4v1234567890"
+              src="https://www.google.com/maps/embed?pb=!1m17!1m12!1m3!1d395.08417811206493!2d16.373427959571636!3d48.22974577423544!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m2!1m1!2zNDjCsDEzJzQ3LjYiTiAxNsKwMjInMjQuMSJF!5e0!3m2!1sen!2sid!4v1779199933120!5m2!1sen!2sid"
               width="100%"
               height="100%"
               style={{ border: 0, minHeight: "280px" }}
@@ -553,7 +593,7 @@ export default function HomePage() {
             />
             
             {/* Tombol buka Google Maps */}
-            < a href="https://maps.google.com/?q=Malfattigasse+18,+1120+Wien"
+            < a href="https://maps.app.goo.gl/kQbPzPgabaKvMwMj9"
               target="_blank"
               rel="noopener noreferrer"
               className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-white/90 backdrop-blur-sm border border-gray-200 rounded-full px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-white transition shadow"
@@ -579,7 +619,7 @@ export default function HomePage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
-                <span>Malfattigasse 18, Erdgeschoss 1120 Wien (Meidling), Austria</span>
+                <span>Rauscherstraße 7/Hoftrakt, 1200 Wien, Austria</span>
               </div>
               <div className="flex items-center gap-2 text-xs text-gray-600">
                 <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -599,10 +639,10 @@ export default function HomePage() {
             <div className="bg-green-600 rounded-2xl p-5 flex flex-col gap-3">
               <h3 className="font-bold text-white text-sm">Petunjuk Arah</h3>
               <div className="flex flex-col gap-2 text-xs text-green-100">
-                <p><span className="font-bold text-white">U-Bahn U4</span> — Stasiun Meidling Hauptstraße, jalan kaki ±5 menit</p>
-                <p><span className="font-bold text-white">U-Bahn U6</span> — Stasiun Längenfeldgasse, jalan kaki ±8 menit</p>
-                <p><span className="font-bold text-white">Bus 59A</span> — Halte Malfattigasse (tepat di depan masjid)</p>
-                <p>Parkir tersedia di sekitar Malfattigasse dan Gasgasse</p>
+                <p><span className="font-bold text-white">U-Bahn U6</span> — Stasiun Dresdner Straße, jalan kaki ±7 menit</p>
+                <p><span className="font-bold text-white">Tram 2</span> — Halte Gaußplatz, jalan kaki ±5 menit</p>
+                <p><span className="font-bold text-white">Bus 11A</span> — Halte Rauscherstraße (dekat masjid)</p>
+                <p>Parkir tersedia di sekitar Rauscherstraße dan Adalbert-Stifter-Straße</p>
               </div>
             </div>
           </div>
