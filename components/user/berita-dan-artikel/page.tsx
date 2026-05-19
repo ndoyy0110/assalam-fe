@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://assalam-be-production.up.railway.app";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://assalam-be.vercel.app";
 
 type StatusType = "PUBLISHED" | "DRAFT";
 

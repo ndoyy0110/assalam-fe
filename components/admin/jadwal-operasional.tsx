@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Clock } from "lucide-react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://assalam-be-production.up.railway.app";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://assalam-be.vercel.app";
 
 interface OperationalHour {
   id: number;
