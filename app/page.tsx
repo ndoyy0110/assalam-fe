@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useGoogleLogin } from "@react-oauth/google";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
@@ -40,6 +41,12 @@ interface Artikel {
   status: string;
   author: { name: string };
   createdAt: string;
+}
+
+interface GoogleUser {
+  name: string;
+  email: string;
+  picture: string;
 }
 
 const PRAYER_LABELS = [
@@ -125,6 +132,7 @@ const NEARBY_MOSQUES = [
   },
 ];
 
+
 export default function HomePage() {
   const router = useRouter();
   const [now, setNow] = useState(new Date());
@@ -136,6 +144,12 @@ export default function HomePage() {
   const [loadingKegiatan, setLoadingKegiatan] = useState(true);
   const [artikel, setArtikel] = useState<Artikel[]>([]);
   const [loadingArtikel, setLoadingArtikel] = useState(true);
+
+  // Google Calendar state
+  const [googleToken, setGoogleToken] = useState<string | null>(null);
+  const [googleUser, setGoogleUser] = useState<GoogleUser | null>(null);
+  const [addingId, setAddingId] = useState<number | null>(null);
+  const [successId, setSuccessId] = useState<number | null>(null);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000);
@@ -187,6 +201,68 @@ export default function HomePage() {
       .finally(() => setLoadingArtikel(false));
   }, []);
 
+  // Google Login
+  const loginWithGoogle = useGoogleLogin({
+    onSuccess: async (response) => {
+      const token = response.access_token;
+      setGoogleToken(token);
+      try {
+        const userRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const userInfo = await userRes.json();
+        setGoogleUser({ name: userInfo.name, email: userInfo.email, picture: userInfo.picture });
+      } catch {
+        // ignore
+      }
+    },
+    onError: () => alert("Login Google gagal. Coba lagi."),
+    scope: "https://www.googleapis.com/auth/calendar.events",
+  });
+
+  const addToCalendar = async (item: Kegiatan) => {
+    if (!googleToken) {
+      loginWithGoogle();
+      return;
+    }
+    setAddingId(item.id);
+    try {
+      const event = {
+        summary: item.title,
+        description: item.description,
+        start: { dateTime: item.startTime, timeZone: "Europe/Vienna" },
+        end: { dateTime: item.endTime, timeZone: "Europe/Vienna" },
+        reminders: {
+          useDefault: false,
+          overrides: [
+            { method: "popup", minutes: 30 },
+            { method: "email", minutes: 60 },
+          ],
+        },
+      };
+      const res = await fetch(
+        "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${googleToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(event),
+        }
+      );
+      if (!res.ok) throw new Error("Gagal");
+      setSuccessId(item.id);
+      setTimeout(() => setSuccessId(null), 3000);
+    } catch {
+      alert("Gagal menambahkan ke kalender. Silakan login ulang.");
+      setGoogleToken(null);
+      setGoogleUser(null);
+    } finally {
+      setAddingId(null);
+    }
+  };
+
   const clockStr = now.toTimeString().slice(0, 8).replace(/:/g, ".");
   const dateStr = now.toLocaleDateString("id-ID", {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
@@ -233,7 +309,7 @@ export default function HomePage() {
         </div>
 
         {/* HERO CONTENT */}
-        <div className="relative z-10 flex-1 flex flex-col m-20 justify-end px-6 sm:px-16 pb-16 pt-8 max-w-2xl">
+        <div className="relative z-10 flex-1 flex flex-col justify-end px-6 sm:px-16 pb-16 pt-8 max-w-2xl ml-8 sm:ml-16">
           <div className="flex items-center gap-2 mb-4">
             <div className="w-6 h-0.5 bg-green-400" />
             <span className="text-green-300 text-xs font-semibold tracking-widest uppercase">
@@ -349,7 +425,7 @@ export default function HomePage() {
 
       {/* ── JADWAL OPERASIONAL ── */}
       <section className="bg-white w-full">
-        <div className="w-full max-w-2xl mx-auto m-20 px-4 py-12 flex flex-col gap-6">
+        <div className="w-full max-w-2xl mx-auto px-4 py-12 flex flex-col gap-6">
           <div className="text-center flex flex-col gap-1">
             <p className="text-green-600 text-xs font-bold tracking-widest uppercase">Jadwal Operasional</p>
             <h2 className="text-gray-800 text-2xl font-bold">Jam Buka Masjid</h2>
@@ -357,9 +433,9 @@ export default function HomePage() {
 
           <div className="flex justify-center">
             <div className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold ${
-              isMasjidOpen ? "bg-[#22C55ED9] text-[#ffffffff]" : "bg-[#EF4444D9] text-[#FFFFFFFF]"
+              isMasjidOpen ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
             }`}>
-              <span className={`w-2.5 h-2.5 rounded-full ${isMasjidOpen ? "bg-[#BBF7D0] animate-pulse" : "bg-[#FFC9C9]"}`} />
+              <span className={`w-2.5 h-2.5 rounded-full ${isMasjidOpen ? "bg-green-500 animate-pulse" : "bg-gray-400"}`} />
               {isMasjidOpen ? "Masjid Saat Ini Buka" : "Masjid Saat Ini Tutup"}
             </div>
           </div>
@@ -404,14 +480,14 @@ export default function HomePage() {
       </section>
 
       {/* ── KEGIATAN MASJID ── */}
-      <div className="w-full max-w-4xl mx-auto m-20 px-4 py-12 flex flex-col gap-6">
+      <div className="w-full max-w-4xl mx-auto px-4 py-12 flex flex-col gap-6">
         <div className="text-center flex flex-col gap-1">
           <p className="text-green-600 text-xs font-bold tracking-widest uppercase">Kegiatan Masjid</p>
           <h2 className="text-gray-800 text-2xl font-bold">Program dan Kegiatan</h2>
         </div>
 
-        {/* Card sinkron Google Calendar */}
-        <div className="bg-white rounded-2xl p-8 flex flex-col items-center gap-3 shadow-sm text-center max-w-md mx-auto w-full">
+        {/* Card Google Calendar */}
+        <div className="bg-white rounded-2xl p-6 flex flex-col items-center gap-3 shadow-sm text-center max-w-md mx-auto w-full">
           <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center">
             <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <rect x="3" y="4" width="18" height="18" rx="2" strokeWidth={2} />
@@ -422,20 +498,35 @@ export default function HomePage() {
           <p className="text-xs text-green-600 leading-relaxed max-w-xs">
             Masuk dengan akun Google untuk menambahkan kegiatan masjid ke kalender Anda secara otomatis.
           </p>
-          
-          <a  href="https://calendar.google.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 border border-gray-200 rounded-full px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-            </svg>
-            Masuk dengan Google
-          </a>
+
+          {googleUser ? (
+            <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-full px-4 py-2 w-full justify-center">
+              <img src={googleUser.picture} alt={googleUser.name} className="w-6 h-6 rounded-full" />
+              <div className="text-left">
+                <p className="text-xs font-bold text-gray-800">{googleUser.name}</p>
+                <p className="text-[10px] text-gray-500">{googleUser.email}</p>
+              </div>
+              <button
+                onClick={() => { setGoogleToken(null); setGoogleUser(null); }}
+                className="text-[10px] text-red-400 hover:text-red-600 ml-2 font-semibold"
+              >
+                Keluar
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => loginWithGoogle()}
+              className="flex items-center gap-2 border border-gray-200 rounded-full px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              Masuk dengan Google
+            </button>
+          )}
         </div>
 
         {/* Grid kegiatan */}
@@ -466,19 +557,45 @@ export default function HomePage() {
                   <p className="text-xs font-semibold text-gray-600 mb-1">Deskripsi</p>
                   <p className="text-xs text-gray-500 leading-relaxed line-clamp-3">{item.description}</p>
                 </div>
-                <button className="mt-auto w-full bg-green-500 hover:bg-green-600 text-white text-xs font-semibold rounded-full py-2 transition">
-                  Buat Pengingat
+                <button
+                  onClick={() => addToCalendar(item)}
+                  disabled={addingId === item.id}
+                  className={`mt-auto w-full text-white text-xs font-semibold rounded-full py-2 transition flex items-center justify-center gap-1.5 ${
+                    successId === item.id
+                      ? "bg-blue-500"
+                      : "bg-green-500 hover:bg-green-600 disabled:opacity-60"
+                  }`}
+                >
+                  {addingId === item.id ? (
+                    <>
+                      <div className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full" />
+                      Menambahkan...
+                    </>
+                  ) : successId === item.id ? (
+                    <>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Ditambahkan ke Kalender!
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <rect x="3" y="4" width="18" height="18" rx="2" strokeWidth={2} />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4" />
+                      </svg>
+                      Buat Pengingat
+                    </>
+                  )}
                 </button>
               </div>
             ))}
-            {/* Empty placeholders */}
             {Array.from({ length: Math.max(0, 6 - kegiatan.length) }).map((_, i) => (
               <div key={`empty-k-${i}`} className="bg-white border border-gray-100 rounded-2xl min-h-[180px]" />
             ))}
           </div>
         )}
 
-        {/* Tombol lihat semua */}
         <div className="flex justify-center">
           <button
             onClick={() => router.push("/user/kegiatan-masjid")}
@@ -494,7 +611,7 @@ export default function HomePage() {
 
       {/* ── BERITA DAN ARTIKEL ── */}
       <section className="bg-white w-full">
-        <div className="w-full max-w-4xl mx-auto m-20 px-4 py-12 flex flex-col gap-6">
+        <div className="w-full max-w-4xl mx-auto px-4 py-12 flex flex-col gap-6">
           <div className="text-center flex flex-col gap-1">
             <p className="text-green-600 text-xs font-bold tracking-widest uppercase">Berita dan Artikel</p>
             <h2 className="text-gray-800 text-2xl font-bold">Kabar Terbaru dari Masjid</h2>
@@ -506,18 +623,13 @@ export default function HomePage() {
             </div>
           ) : (
             <>
-              {/* Featured artikel */}
               {featuredArtikel && (
                 <div
                   className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm flex flex-col sm:flex-row cursor-pointer hover:shadow-md transition"
                   onClick={() => router.push(`/user/berita-dan-artikel/${featuredArtikel.id}`)}
                 >
                   {featuredArtikel.imageUrl && (
-                    <img
-                      src={featuredArtikel.imageUrl}
-                      alt={featuredArtikel.title}
-                      className="w-full sm:w-64 h-52 sm:h-auto object-cover flex-shrink-0"
-                    />
+                    <img src={featuredArtikel.imageUrl} alt={featuredArtikel.title} className="w-full sm:w-64 h-52 sm:h-auto object-cover flex-shrink-0" />
                   )}
                   <div className="p-6 flex flex-col gap-2 justify-center">
                     <h3 className="text-lg font-bold text-gray-800 leading-snug">{featuredArtikel.title}</h3>
@@ -529,7 +641,6 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* Grid artikel lainnya */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {otherArtikel.map((item) => (
                   <div
@@ -549,7 +660,6 @@ export default function HomePage() {
                     </div>
                   </div>
                 ))}
-                {/* Empty placeholders */}
                 {Array.from({ length: Math.max(0, 4 - otherArtikel.length) }).map((_, i) => (
                   <div key={`empty-a-${i}`} className="bg-white border border-gray-100 rounded-2xl min-h-[160px]" />
                 ))}
@@ -648,10 +758,10 @@ export default function HomePage() {
           </div>
         </div>
       </div>
-      
+
       {/* ── MASJID TERDEKAT ── */}
       <section className="bg-white w-full">
-        <div className="w-full max-w-4xl m-20 mx-auto px-4 py-12 flex flex-col gap-6">
+        <div className="w-full max-w-4xl mx-auto px-4 py-12 flex flex-col gap-6">
           <div className="text-center flex flex-col gap-1">
             <p className="text-green-600 text-xs font-bold tracking-widest uppercase">Masjid Terdekat</p>
             <h2 className="text-gray-800 text-2xl font-bold">Masjid Lain di Sekitar</h2>
@@ -739,6 +849,7 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
+
     </div>
   );
 }
