@@ -132,9 +132,11 @@ const NEARBY_MOSQUES = [
   },
 ];
 
+const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jum'at", "Sabtu"];
 
 export default function HomePage() {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const [now, setNow] = useState(new Date());
   const [prayerTimes, setPrayerTimes] = useState<PrayerTimes | null>(null);
   const [loadingPrayer, setLoadingPrayer] = useState(true);
@@ -144,14 +146,14 @@ export default function HomePage() {
   const [loadingKegiatan, setLoadingKegiatan] = useState(true);
   const [artikel, setArtikel] = useState<Artikel[]>([]);
   const [loadingArtikel, setLoadingArtikel] = useState(true);
-
-  // Google Calendar state
   const [googleToken, setGoogleToken] = useState<string | null>(null);
   const [googleUser, setGoogleUser] = useState<GoogleUser | null>(null);
   const [addingId, setAddingId] = useState<number | null>(null);
   const [successId, setSuccessId] = useState<number | null>(null);
 
+  // mounted + jam berjalan
   useEffect(() => {
+    setMounted(true);
     const interval = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
@@ -201,7 +203,6 @@ export default function HomePage() {
       .finally(() => setLoadingArtikel(false));
   }, []);
 
-  // Google Login
   const loginWithGoogle = useGoogleLogin({
     onSuccess: async (response) => {
       const token = response.access_token;
@@ -263,19 +264,19 @@ export default function HomePage() {
     }
   };
 
-  const clockStr = now.toTimeString().slice(0, 8).replace(/:/g, ".");
-  const dateStr = now.toLocaleDateString("id-ID", {
-    weekday: "long", day: "numeric", month: "long", year: "numeric",
-  });
-  const hijriStr = getHijriDate();
-  const nextPrayer = prayerTimes ? getNextPrayer(prayerTimes, now) : null;
+  // Semua nilai time-dependent dibungkus mounted
+  const clockStr = mounted ? now.toTimeString().slice(0, 8).replace(/:/g, ".") : "--:--:--";
+  const dateStr = mounted
+    ? now.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+    : "";
+  const hijriStr = mounted ? getHijriDate() : "";
+  const nowMinutes = mounted ? now.getHours() * 60 + now.getMinutes() : 0;
+  const todayName = mounted ? dayNames[now.getDay()] : "";
+  const nextPrayer = mounted && prayerTimes ? getNextPrayer(prayerTimes, now) : null;
 
-  const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jum'at", "Sabtu"];
-  const todayName = dayNames[now.getDay()];
   const todaySchedule = opSchedule.find((s) => s.day === todayName);
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
   let isMasjidOpen = false;
-  if (todaySchedule && !todaySchedule.isClosed) {
+  if (mounted && todaySchedule && !todaySchedule.isClosed) {
     const [oh, om] = todaySchedule.open.split(":").map(Number);
     const [ch, cm] = todaySchedule.close.split(":").map(Number);
     isMasjidOpen = nowMinutes >= oh * 60 + om && nowMinutes < ch * 60 + cm;
@@ -287,13 +288,9 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-[#F0FDF4] flex flex-col">
 
-      {/* ── HERO SECTION ── */}
+      {/* ── HERO ── */}
       <div className="relative w-full flex flex-col" style={{ minHeight: "480px" }}>
-        <img
-          src="images/foto1.jpeg"
-          alt="Masjid As-Salam"
-          className="absolute inset-0 w-full h-full object-cover"
-        />
+        <img src="images/foto1.jpeg" alt="Masjid As-Salam" className="absolute inset-0 w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/20" />
 
         {/* NAV */}
@@ -312,32 +309,27 @@ export default function HomePage() {
         <div className="relative z-10 flex-1 flex flex-col justify-end px-6 sm:px-16 pb-16 pt-8 max-w-2xl ml-8 sm:ml-16">
           <div className="flex items-center gap-2 mb-4">
             <div className="w-6 h-0.5 bg-green-400" />
-            <span className="text-green-300 text-xs font-semibold tracking-widest uppercase">
-              Masjid Indonesia di Wina, Austria
-            </span>
+            <span className="text-green-300 text-xs font-semibold tracking-widest uppercase">Masjid Indonesia di Wina, Austria</span>
           </div>
-          <h1 className="text-white text-4xl sm:text-5xl font-extrabold leading-tight mb-3 drop-shadow">
-            Masjid As-Salam
-          </h1>
+          <h1 className="text-white text-4xl sm:text-5xl font-extrabold leading-tight mb-3 drop-shadow">Masjid As-Salam</h1>
           <p className="text-green-300 text-base font-bold mb-4">Merajut Ukhuwah, Menebarkan Kedamaian.</p>
           <p className="text-white text-2xl mb-4 leading-loose">بِسۡمِ ٱللَّهِ ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ</p>
           <p className="text-white/80 text-sm leading-relaxed max-w-sm">
-            Selamat datang di <span className="font-bold text-white">Masjid As-Salam</span>, satu-satunya
-            masjid komunitas Indonesia di Vienna. Pusat ibadah, silaturahmi, dan kegiatan
-            keislaman bagi warga Muslim Indonesia yang bermukim di Austria.
+            Selamat datang di <span className="font-bold text-white">Masjid As-Salam</span>, satu-satunya masjid komunitas Indonesia di Vienna. Pusat ibadah, silaturahmi, dan kegiatan keislaman bagi warga Muslim Indonesia yang bermukim di Austria.
           </p>
         </div>
       </div>
 
       {/* ── JADWAL SHOLAT ── */}
-      <div className="w-full max-w-2xl mx-auto m-20 px-4 py-12 flex flex-col gap-6">
+      <div className="w-full max-w-2xl mx-auto px-4 py-12 flex flex-col gap-6">
         <div className="text-center flex flex-col gap-1">
           <p className="text-[#22C55E] text-xs font-bold tracking-widest uppercase">Jadwal Sholat</p>
           <h2 className="text-gray-800 text-2xl font-bold">Waktu Sholat Hari Ini</h2>
         </div>
 
         <div className="bg-[#22C55E] rounded-2xl px-5 py-5 flex items-center justify-between gap-4 shadow-md">
-            <div className="bg-green-300/30 backdrop-blur-md rounded-xl px-3 py-2 text-right border border-white/20 text-start">              <p className="text-green-100 text-[10px]">Sholat Berikutnya</p>
+          <div className="bg-green-300/30 backdrop-blur-md rounded-xl px-3 py-2 border border-white/20">
+            <p className="text-green-100 text-[10px]">Tanggal</p>
             <p className="text-white text-xs font-semibold">{dateStr}</p>
             <p className="text-green-200 text-xs">{hijriStr}</p>
           </div>
@@ -349,7 +341,8 @@ export default function HomePage() {
             <span className="text-white text-2xl font-bold tracking-widest">{clockStr}</span>
           </div>
           {nextPrayer && (
-            <div className="bg-green-300/30 backdrop-blur-md rounded-xl px-3 py-2 text-right border border-white/20">              <p className="text-green-100 text-[10px]">Sholat Berikutnya</p>
+            <div className="bg-green-300/30 backdrop-blur-md rounded-xl px-3 py-2 text-right border border-white/20">
+              <p className="text-green-100 text-[10px]">Sholat Berikutnya</p>
               <p className="text-white text-sm font-bold">{nextPrayer.label} - {nextPrayer.time}</p>
               <p className="text-green-200 text-[10px]">{nextPrayer.diff}</p>
             </div>
@@ -362,63 +355,26 @@ export default function HomePage() {
           </div>
         ) : (
           <div className="grid grid-cols-5 gap-3">
-          {PRAYER_LABELS.map((p) => {
-            const timeVal = prayerTimes
-              ? formatTime(prayerTimes[p.key as keyof PrayerTimes])
-              : "--:--";
-
-            const [h, m] = timeVal.split(":").map(Number);
-            const pMin = h * 60 + m;
-
-            const isNext = nextPrayer?.label === p.label;
-            const isPast = pMin < nowMinutes && !isNext;
-
-            return (
-              <div
-                key={p.key}
-                className={`flex flex-col items-center gap-2 rounded-2xl py-4 px-3 shadow-sm transition ${
-                  isNext
-                    ? "bg-green-500 text-white"
-                    : isPast
-                    ? "bg-white text-gray-300"
-                    : "bg-white text-gray-700"
-                }`}
-              >
-                {/* ICON IMAGE */}
-                <img
-                  src={p.icon}
-                  alt={p.label}
-                  className="w-10 h-10 object-contain"
-                />
-
-                {/* LABEL */}
-                <span
-                  className={`text-xs font-semibold ${
-                    isNext
-                      ? "text-white"
-                      : isPast
-                      ? "text-gray-300"
-                      : "text-gray-500"
-                  }`}
-                >
-                  {p.label}
-                </span>
-
-                {/* TIME */}
-                <span
-                  className={`text-sm font-bold ${
-                    isNext
-                      ? "text-white"
-                      : isPast
-                      ? "text-gray-300"
-                      : "text-gray-800"
-                  }`}
-                >
-                  {timeVal}
-                </span>
-              </div>
-            );
-          })}
+            {PRAYER_LABELS.map((p) => {
+              const timeVal = prayerTimes ? formatTime(prayerTimes[p.key as keyof PrayerTimes]) : "--:--";
+              const [h, m] = timeVal.split(":").map(Number);
+              const pMin = h * 60 + m;
+              const isNext = nextPrayer?.label === p.label;
+              const isPast = mounted && pMin < nowMinutes && !isNext;
+              return (
+                <div key={p.key} className={`flex flex-col items-center gap-2 rounded-2xl py-4 px-3 shadow-sm transition ${
+                  isNext ? "bg-green-500 text-white" : isPast ? "bg-white text-gray-300" : "bg-white text-gray-700"
+                }`}>
+                  <img src={p.icon} alt={p.label} className="w-10 h-10 object-contain" />
+                  <span className={`text-xs font-semibold ${isNext ? "text-white" : isPast ? "text-gray-300" : "text-gray-500"}`}>
+                    {p.label}
+                  </span>
+                  <span className={`text-sm font-bold ${isNext ? "text-white" : isPast ? "text-gray-300" : "text-gray-800"}`}>
+                    {timeVal}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -452,7 +408,7 @@ export default function HomePage() {
               <div className="bg-white p-10 text-center text-gray-400 text-sm">Jadwal belum tersedia.</div>
             ) : (
               opSchedule.map((item, idx) => {
-                const isToday = item.day === todayName;
+                const isToday = mounted && item.day === todayName;
                 return (
                   <div key={item.id} className={`flex items-center justify-between px-5 py-4 ${
                     isToday ? "bg-green-50" : "bg-white"
@@ -498,7 +454,6 @@ export default function HomePage() {
           <p className="text-xs text-green-600 leading-relaxed max-w-xs">
             Masuk dengan akun Google untuk menambahkan kegiatan masjid ke kalender Anda secara otomatis.
           </p>
-
           {googleUser ? (
             <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-full px-4 py-2 w-full justify-center">
               <img src={googleUser.picture} alt={googleUser.name} className="w-6 h-6 rounded-full" />
@@ -561,9 +516,7 @@ export default function HomePage() {
                   onClick={() => addToCalendar(item)}
                   disabled={addingId === item.id}
                   className={`mt-auto w-full text-white text-xs font-semibold rounded-full py-2 transition flex items-center justify-center gap-1.5 ${
-                    successId === item.id
-                      ? "bg-blue-500"
-                      : "bg-green-500 hover:bg-green-600 disabled:opacity-60"
+                    successId === item.id ? "bg-blue-500" : "bg-green-500 hover:bg-green-600 disabled:opacity-60"
                   }`}
                 >
                   {addingId === item.id ? (
@@ -640,7 +593,6 @@ export default function HomePage() {
                   </div>
                 </div>
               )}
-
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {otherArtikel.map((item) => (
                   <div
@@ -682,14 +634,13 @@ export default function HomePage() {
       </section>
 
       {/* ── LOKASI MASJID ── */}
-      <div className="w-full max-w-4xl m-20 mx-auto px-4 py-12 flex flex-col gap-6">
+      <div className="w-full max-w-4xl mx-auto px-4 py-12 flex flex-col gap-6">
         <div className="text-center flex flex-col gap-1">
           <p className="text-green-600 text-xs font-bold tracking-widest uppercase">Lokasi Masjid</p>
           <h2 className="text-gray-800 text-2xl font-bold">Temukan Kami</h2>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4">
-          {/* Peta embed */}
           <div className="flex-1 rounded-2xl overflow-hidden shadow-sm min-h-[280px] relative">
             <iframe
               src="https://www.google.com/maps/embed?pb=!1m17!1m12!1m3!1d395.08417811206493!2d16.373427959571636!3d48.22974577423544!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m2!1m1!2zNDjCsDEzJzQ3LjYiTiAxNsKwMjInMjQuMSJF!5e0!3m2!1sen!2sid!4v1779199933120!5m2!1sen!2sid"
@@ -702,8 +653,7 @@ export default function HomePage() {
               className="absolute inset-0 w-full h-full"
             />
             
-            {/* Tombol buka Google Maps */}
-            < a href="https://maps.app.goo.gl/kQbPzPgabaKvMwMj9"
+            <a href="https://maps.app.goo.gl/kQbPzPgabaKvMwMj9"
               target="_blank"
               rel="noopener noreferrer"
               className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-white/90 backdrop-blur-sm border border-gray-200 rounded-full px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-white transition shadow"
@@ -719,9 +669,7 @@ export default function HomePage() {
             </a>
           </div>
 
-          {/* Info kontak & petunjuk arah */}
           <div className="flex flex-col gap-4 w-full sm:w-72 flex-shrink-0">
-            {/* Informasi Kontak */}
             <div className="bg-white rounded-2xl p-5 shadow-sm flex flex-col gap-3">
               <h3 className="font-bold text-gray-800 text-sm">Informasi Kontak</h3>
               <div className="flex items-start gap-2 text-xs text-gray-600">
@@ -745,7 +693,6 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Petunjuk Arah */}
             <div className="bg-green-600 rounded-2xl p-5 flex flex-col gap-3">
               <h3 className="font-bold text-white text-sm">Petunjuk Arah</h3>
               <div className="flex flex-col gap-2 text-xs text-green-100">
@@ -806,8 +753,7 @@ export default function HomePage() {
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-2">
                 <svg className="w-5 h-5 text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M12 3C7 3 3 7 3 12s4 9 9 9 9-4 9-9-4-9-9-9zm0 0v9m0-9C9 6 7 9 7 12m5-9c3 3 5 6 5 9" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3C7 3 3 7 3 12s4 9 9 9 9-4 9-9-4-9-9-9zm0 0v9m0-9C9 6 7 9 7 12m5-9c3 3 5 6 5 9" />
                 </svg>
                 <span className="text-white text-lg font-bold">Wapena</span>
               </div>
