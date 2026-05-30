@@ -1,12 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useGoogleLogin } from "@react-oauth/google";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useGoogleAuth } from "@/context/GoogleAuthContext";
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://assalam-be.vercel.app";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://assalam-be.vercel.app";
 
 interface PrayerTimes {
   Fajr: string;
@@ -43,10 +41,10 @@ interface Artikel {
   createdAt: string;
 }
 
-interface GoogleUser {
-  name: string;
-  email: string;
-  picture: string;
+interface Toast {
+  title: string;
+  subtitle: string;
+  success: boolean;
 }
 
 const PRAYER_LABELS = [
@@ -56,6 +54,8 @@ const PRAYER_LABELS = [
   { key: "Maghrib", label: "Maghrib", icon: "/images/Icon4.png" },
   { key: "Isha",    label: "Isya",    icon: "/images/Icon5.png" },
 ];
+
+const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jum'at", "Sabtu"];
 
 const formatTime = (timeStr: string) => {
   if (!timeStr) return "--:--";
@@ -132,10 +132,11 @@ const NEARBY_MOSQUES = [
   },
 ];
 
-const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jum'at", "Sabtu"];
-
-export default function HomePage() {
+function HomePageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { googleToken, googleUser, loginWithGoogle, logout } = useGoogleAuth();
+
   const [mounted, setMounted] = useState(false);
   const [now, setNow] = useState(new Date());
   const [prayerTimes, setPrayerTimes] = useState<PrayerTimes | null>(null);
@@ -146,17 +147,39 @@ export default function HomePage() {
   const [loadingKegiatan, setLoadingKegiatan] = useState(true);
   const [artikel, setArtikel] = useState<Artikel[]>([]);
   const [loadingArtikel, setLoadingArtikel] = useState(true);
-  const [googleToken, setGoogleToken] = useState<string | null>(null);
-  const [googleUser, setGoogleUser] = useState<GoogleUser | null>(null);
   const [addingId, setAddingId] = useState<number | null>(null);
-  const [successId, setSuccessId] = useState<number | null>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
+  const [toastVisible, setToastVisible] = useState(false);
 
-  // mounted + jam berjalan
   useEffect(() => {
     setMounted(true);
     const interval = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Handle loginRequired dari halaman kegiatan
+  useEffect(() => {
+    if (searchParams.get("loginRequired") === "true" && !googleToken) {
+      showToast("Login Diperlukan", "Silakan login dengan Google untuk membuat pengingat.", false);
+      const timer = setTimeout(() => loginWithGoogle(), 800);
+      return () => clearTimeout(timer);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (toast) {
+      setToastVisible(true);
+      const timer = setTimeout(() => {
+        setToastVisible(false);
+        setTimeout(() => setToast(null), 300);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
+  const showToast = (title: string, subtitle: string, success: boolean) => {
+    setToast({ title, subtitle, success });
+  };
 
   useEffect(() => {
     const fetchPrayer = async () => {
@@ -203,24 +226,6 @@ export default function HomePage() {
       .finally(() => setLoadingArtikel(false));
   }, []);
 
-  const loginWithGoogle = useGoogleLogin({
-    onSuccess: async (response) => {
-      const token = response.access_token;
-      setGoogleToken(token);
-      try {
-        const userRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const userInfo = await userRes.json();
-        setGoogleUser({ name: userInfo.name, email: userInfo.email, picture: userInfo.picture });
-      } catch {
-        // ignore
-      }
-    },
-    onError: () => alert("Login Google gagal. Coba lagi."),
-    scope: "https://www.googleapis.com/auth/calendar.events",
-  });
-
   const addToCalendar = async (item: Kegiatan) => {
     if (!googleToken) {
       loginWithGoogle();
@@ -253,18 +258,19 @@ export default function HomePage() {
         }
       );
       if (!res.ok) throw new Error("Gagal");
-      setSuccessId(item.id);
-      setTimeout(() => setSuccessId(null), 3000);
+      showToast(
+        "Pengingat Berhasil Ditambahkan!",
+        `${item.title} telah ditambahkan ke Google Calendar Anda`,
+        true
+      );
     } catch {
-      alert("Gagal menambahkan ke kalender. Silakan login ulang.");
-      setGoogleToken(null);
-      setGoogleUser(null);
+      showToast("Gagal Menambahkan", "Silakan login ulang dan coba lagi.", false);
+      logout();
     } finally {
       setAddingId(null);
     }
   };
 
-  // Semua nilai time-dependent dibungkus mounted
   const clockStr = mounted ? now.toTimeString().slice(0, 8).replace(/:/g, ".") : "--:--:--";
   const dateStr = mounted
     ? now.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
@@ -288,12 +294,63 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-[#F0FDF4] flex flex-col">
 
+      {/* ── TOAST ── */}
+      {toast && (
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 ${
+          toastVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+        }`}>
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden min-w-[300px] max-w-sm">
+            <div className="flex items-center gap-3 px-5 py-4">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                toast.success ? "bg-green-500" : "bg-red-500"
+              }`}>
+                {toast.success ? (
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                )}
+              </div>
+              <div className="flex flex-col gap-0.5 flex-1">
+                <p className="text-sm font-bold text-gray-800">{toast.title}</p>
+                <p className={`text-xs leading-snug ${toast.success ? "text-green-600" : "text-red-500"}`}>
+                  {toast.subtitle}
+                </p>
+              </div>
+              <button
+                onClick={() => { setToastVisible(false); setTimeout(() => setToast(null), 300); }}
+                className="text-gray-300 hover:text-gray-500 transition"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="h-1 bg-gray-100">
+              <div
+                className={`h-full ${toast.success ? "bg-green-500" : "bg-red-500"}`}
+                style={{ animation: "shrinkBar 3s linear forwards" }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes shrinkBar {
+          from { width: 100%; }
+          to { width: 0%; }
+        }
+      `}</style>
+
       {/* ── HERO ── */}
       <div className="relative w-full flex flex-col" style={{ minHeight: "480px" }}>
         <img src="images/foto1.jpeg" alt="Masjid As-Salam" className="absolute inset-0 w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/20" />
 
-        {/* NAV */}
         <div className="relative z-10 flex w-full max-w-6xl mx-auto px-6 py-4 mt-5 rounded-3xl bg-white/10 items-center justify-center">
           <div className="flex items-center gap-8">
             <span className="text-white text-sm font-bold cursor-pointer hover:text-green-300 transition" onClick={() => router.push("/user/berita-dan-artikel")}>
@@ -305,7 +362,6 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* HERO CONTENT */}
         <div className="relative z-10 flex-1 flex flex-col justify-end px-6 sm:px-16 pb-16 pt-8 max-w-2xl ml-8 sm:ml-16">
           <div className="flex items-center gap-2 mb-4">
             <div className="w-6 h-0.5 bg-green-400" />
@@ -315,7 +371,7 @@ export default function HomePage() {
           <p className="text-green-300 text-base font-bold mb-4">Merajut Ukhuwah, Menebarkan Kedamaian.</p>
           <p className="text-white text-2xl mb-4 leading-loose">بِسۡمِ ٱللَّهِ ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ</p>
           <p className="text-white/80 text-sm leading-relaxed max-w-sm">
-            Selamat datang di <span className="font-bold text-white">Masjid As-Salam</span>, satu-satunya masjid komunitas Indonesia di Vienna. Pusat ibadah, silaturahmi, dan kegiatan keislaman bagi warga Muslim Indonesia yang bermukim di Austria.
+            Selamat datang di <span className="font-bold text-white">Masjid As-Salam</span>, satu-satunya masjid komunitas Indonesia di Vienna.
           </p>
         </div>
       </div>
@@ -366,12 +422,8 @@ export default function HomePage() {
                   isNext ? "bg-green-500 text-white" : isPast ? "bg-white text-gray-300" : "bg-white text-gray-700"
                 }`}>
                   <img src={p.icon} alt={p.label} className="w-10 h-10 object-contain" />
-                  <span className={`text-xs font-semibold ${isNext ? "text-white" : isPast ? "text-gray-300" : "text-gray-500"}`}>
-                    {p.label}
-                  </span>
-                  <span className={`text-sm font-bold ${isNext ? "text-white" : isPast ? "text-gray-300" : "text-gray-800"}`}>
-                    {timeVal}
-                  </span>
+                  <span className={`text-xs font-semibold ${isNext ? "text-white" : isPast ? "text-gray-300" : "text-gray-500"}`}>{p.label}</span>
+                  <span className={`text-sm font-bold ${isNext ? "text-white" : isPast ? "text-gray-300" : "text-gray-800"}`}>{timeVal}</span>
                 </div>
               );
             })}
@@ -416,9 +468,7 @@ export default function HomePage() {
                     <div className="flex items-center gap-2">
                       {isToday && <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />}
                       <span className={`text-sm ${isToday ? "font-bold text-gray-800" : "text-gray-600"}`}>{item.day}</span>
-                      {isToday && (
-                        <span className="text-[10px] bg-green-100 text-green-600 font-bold px-2 py-0.5 rounded-full">HARI INI</span>
-                      )}
+                      {isToday && <span className="text-[10px] bg-green-100 text-green-600 font-bold px-2 py-0.5 rounded-full">HARI INI</span>}
                     </div>
                     {item.isClosed ? (
                       <span className="text-sm font-semibold text-red-500">Tutup</span>
@@ -461,10 +511,7 @@ export default function HomePage() {
                 <p className="text-xs font-bold text-gray-800">{googleUser.name}</p>
                 <p className="text-[10px] text-gray-500">{googleUser.email}</p>
               </div>
-              <button
-                onClick={() => { setGoogleToken(null); setGoogleUser(null); }}
-                className="text-[10px] text-red-400 hover:text-red-600 ml-2 font-semibold"
-              >
+              <button onClick={logout} className="text-[10px] text-red-400 hover:text-red-600 ml-2 font-semibold">
                 Keluar
               </button>
             </div>
@@ -515,21 +562,12 @@ export default function HomePage() {
                 <button
                   onClick={() => addToCalendar(item)}
                   disabled={addingId === item.id}
-                  className={`mt-auto w-full text-white text-xs font-semibold rounded-full py-2 transition flex items-center justify-center gap-1.5 ${
-                    successId === item.id ? "bg-blue-500" : "bg-green-500 hover:bg-green-600 disabled:opacity-60"
-                  }`}
+                  className={`mt-auto w-full text-white text-xs font-semibold rounded-full py-2 transition flex items-center justify-center gap-1.5 bg-green-500 hover:bg-green-600 disabled:opacity-60`}
                 >
                   {addingId === item.id ? (
                     <>
                       <div className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full" />
                       Menambahkan...
-                    </>
-                  ) : successId === item.id ? (
-                    <>
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      Ditambahkan ke Kalender!
                     </>
                   ) : (
                     <>
@@ -569,7 +607,6 @@ export default function HomePage() {
             <p className="text-green-600 text-xs font-bold tracking-widest uppercase">Berita dan Artikel</p>
             <h2 className="text-gray-800 text-2xl font-bold">Kabar Terbaru dari Masjid</h2>
           </div>
-
           {loadingArtikel ? (
             <div className="flex justify-center py-6">
               <div className="animate-spin w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full" />
@@ -600,15 +637,11 @@ export default function HomePage() {
                     className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm flex flex-col cursor-pointer hover:shadow-md transition"
                     onClick={() => router.push(`/user/berita-dan-artikel/${item.id}`)}
                   >
-                    {item.imageUrl && (
-                      <img src={item.imageUrl} alt={item.title} className="w-full h-28 object-cover" />
-                    )}
+                    {item.imageUrl && <img src={item.imageUrl} alt={item.title} className="w-full h-28 object-cover" />}
                     <div className="p-3 flex flex-col gap-1">
                       <h3 className="text-xs font-bold text-gray-800 leading-snug line-clamp-2">{item.title}</h3>
                       <p className="text-[10px] text-gray-400">{formatTanggal(item.createdAt)}</p>
-                      {item.summary && (
-                        <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-3">{item.summary}</p>
-                      )}
+                      {item.summary && <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-3">{item.summary}</p>}
                     </div>
                   </div>
                 ))}
@@ -618,7 +651,6 @@ export default function HomePage() {
               </div>
             </>
           )}
-
           <div className="flex justify-center">
             <button
               onClick={() => router.push("/user/berita-dan-artikel")}
@@ -639,23 +671,16 @@ export default function HomePage() {
           <p className="text-green-600 text-xs font-bold tracking-widest uppercase">Lokasi Masjid</p>
           <h2 className="text-gray-800 text-2xl font-bold">Temukan Kami</h2>
         </div>
-
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 rounded-2xl overflow-hidden shadow-sm min-h-[280px] relative">
             <iframe
               src="https://www.google.com/maps/embed?pb=!1m17!1m12!1m3!1d395.08417811206493!2d16.373427959571636!3d48.22974577423544!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m2!1m1!2zNDjCsDEzJzQ3LjYiTiAxNsKwMjInMjQuMSJF!5e0!3m2!1sen!2sid!4v1779199933120!5m2!1sen!2sid"
-              width="100%"
-              height="100%"
+              width="100%" height="100%"
               style={{ border: 0, minHeight: "280px" }}
-              allowFullScreen
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
+              allowFullScreen loading="lazy" referrerPolicy="no-referrer-when-downgrade"
               className="absolute inset-0 w-full h-full"
             />
-            
-            <a href="https://maps.app.goo.gl/kQbPzPgabaKvMwMj9"
-              target="_blank"
-              rel="noopener noreferrer"
+            <a href="https://maps.app.goo.gl/kQbPzPgabaKvMwMj9" target="_blank" rel="noopener noreferrer"
               className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-white/90 backdrop-blur-sm border border-gray-200 rounded-full px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-white transition shadow"
             >
               <svg className="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -663,12 +688,8 @@ export default function HomePage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
               Buka di Google Maps
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
             </a>
           </div>
-
           <div className="flex flex-col gap-4 w-full sm:w-72 flex-shrink-0">
             <div className="bg-white rounded-2xl p-5 shadow-sm flex flex-col gap-3">
               <h3 className="font-bold text-gray-800 text-sm">Informasi Kontak</h3>
@@ -692,7 +713,6 @@ export default function HomePage() {
                 <span>info@wapena.org</span>
               </div>
             </div>
-
             <div className="bg-green-600 rounded-2xl p-5 flex flex-col gap-3">
               <h3 className="font-bold text-white text-sm">Petunjuk Arah</h3>
               <div className="flex flex-col gap-2 text-xs text-green-100">
@@ -713,7 +733,6 @@ export default function HomePage() {
             <p className="text-green-600 text-xs font-bold tracking-widest uppercase">Masjid Terdekat</p>
             <h2 className="text-gray-800 text-2xl font-bold">Masjid Lain di Sekitar</h2>
           </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {NEARBY_MOSQUES.map((mosque) => (
               <div key={mosque.name} className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm flex flex-col">
@@ -795,7 +814,14 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
-
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={null}>
+      <HomePageContent />
+    </Suspense>
   );
 }

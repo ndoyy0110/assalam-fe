@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useGoogleAuth } from "@/context/GoogleAuthContext";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://assalam-be.vercel.app";
 
@@ -12,6 +13,12 @@ type Kegiatan = {
   startTime: string;
   endTime: string;
 };
+
+interface Toast {
+  title: string;
+  subtitle: string;
+  success: boolean;
+}
 
 const ITEMS_PER_PAGE = 6;
 
@@ -26,25 +33,40 @@ const formatJam = (iso: string): string => {
 const formatTanggal = (iso: string): string => {
   if (!iso) return "-";
   return new Date(iso).toLocaleDateString("id-ID", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
+    day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
   });
 };
 
 export default function KegiatanMasjid() {
   const router = useRouter();
+  const { googleToken, googleUser, loginWithGoogle, logout } = useGoogleAuth();
+
   const [data, setData] = useState<Kegiatan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
-  const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  const [addingId, setAddingId] = useState<number | null>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
+  const [toastVisible, setToastVisible] = useState(false);
 
   useEffect(() => {
     fetchKegiatan();
   }, []);
+
+  useEffect(() => {
+    if (toast) {
+      setToastVisible(true);
+      const timer = setTimeout(() => {
+        setToastVisible(false);
+        setTimeout(() => setToast(null), 300);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
+  const showToast = (title: string, subtitle: string, success: boolean) => {
+    setToast({ title, subtitle, success });
+  };
 
   const fetchKegiatan = async () => {
     try {
@@ -55,27 +77,55 @@ export default function KegiatanMasjid() {
       if (!res.ok) throw new Error(json.message || "Gagal mengambil data");
       setData(json.data || []);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Gagal mengambil data";
-      setError(message);
+      setError(err instanceof Error ? err.message : "Gagal mengambil data");
     } finally {
       setLoading(false);
     }
   };
 
-  const confirmDelete = async () => {
-    if (!deleteId) return;
-    setDeleting(true);
+  const addToCalendar = async (item: Kegiatan) => {
+    if (!googleToken) {
+      // Redirect ke homepage untuk login, lalu kembali
+      router.push("/?loginRequired=true");
+      return;
+    }
+    setAddingId(item.id);
     try {
-      const res = await fetch(`${API_URL}/api/activities/${deleteId}`, { method: "DELETE" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message || "Gagal menghapus");
-      setData((prev) => prev.filter((d) => d.id !== deleteId));
-      setDeleteId(null);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Gagal menghapus";
-      setError(message);
+      const event = {
+        summary: item.title,
+        description: item.description,
+        start: { dateTime: item.startTime, timeZone: "Europe/Vienna" },
+        end: { dateTime: item.endTime, timeZone: "Europe/Vienna" },
+        reminders: {
+          useDefault: false,
+          overrides: [
+            { method: "popup", minutes: 30 },
+            { method: "email", minutes: 60 },
+          ],
+        },
+      };
+      const res = await fetch(
+        "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${googleToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(event),
+        }
+      );
+      if (!res.ok) throw new Error("Gagal");
+      showToast(
+        "Pengingat Berhasil Ditambahkan!",
+        `${item.title} telah ditambahkan ke Google Calendar Anda`,
+        true
+      );
+    } catch {
+      showToast("Gagal Menambahkan", "Silakan login ulang dan coba lagi.", false);
+      logout();
     } finally {
-      setDeleting(false);
+      setAddingId(null);
     }
   };
 
@@ -91,6 +141,60 @@ export default function KegiatanMasjid() {
 
   return (
     <div className="flex flex-col min-h-[600px]">
+
+      {/* ── TOAST ── */}
+      {toast && (
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 ${
+          toastVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+        }`}>
+          <div className="bg-white rounded-2xl shadow-2xl border border-[#22C55E4D] overflow-hidden min-w-[300px] max-w-sm">
+            <div className="flex items-center gap-3 px-5 py-4">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                toast.success ? "bg-[#22C55E]" : "bg-red-500"
+              }`}>
+                {toast.success ? (
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                )}
+              </div>
+              <div className="flex flex-col gap-0.5 flex-1">
+                <p className="text-sm font-bold text-[#14532D]">{toast.title}</p>
+                <p className={`text-xs leading-snug ${toast.success ? "text-[#16A34A]" : "text-red-500"}`}>
+                  {toast.subtitle}
+                </p>
+              </div>
+              <button
+                onClick={() => { setToastVisible(false); setTimeout(() => setToast(null), 300); }}
+                className="text-gray-300 hover:text-gray-500 transition"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="h-1 bg-gray-100">
+              <div
+                className={`h-full ${toast.success ? "bg-[#22C55E]" : "bg-red-500"}`}
+                style={{ animation: "shrinkBar 3s linear forwards" }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes shrinkBar {
+          from { width: 100%; }
+          to { width: 0%; }
+        }
+      `}</style>
+
+      {/* Error */}
       {error && (
         <div className="mb-4 bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-lg flex justify-between items-center">
           <span>⚠️ {error}</span>
@@ -98,7 +202,7 @@ export default function KegiatanMasjid() {
         </div>
       )}
 
-      {/* Grid mengisi ruang yang tersedia */}
+      {/* Grid kegiatan */}
       <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 content-start">
         {paginated.length === 0 ? (
           <div className="col-span-3 flex items-center justify-center py-20 text-gray-400 text-sm">
@@ -139,10 +243,24 @@ export default function KegiatanMasjid() {
 
               <div className="flex gap-2 mt-auto pt-2">
                 <button
-                  onClick={() => router.push(``)}
-                  className="flex-1 bg-[#22C55E] rounded-full px-3 py-1.5 flex items-center justify-center gap-1 text-white text-xs font-semibold hover:bg-green-400 transition"
+                  onClick={() => addToCalendar(item)}
+                  disabled={addingId === item.id}
+                  className="flex-1 bg-[#22C55E] rounded-full px-3 py-1.5 flex items-center justify-center gap-1 text-white text-xs font-semibold hover:bg-green-400 disabled:opacity-60 transition"
                 >
-                  Buat Pengingat
+                  {addingId === item.id ? (
+                    <>
+                      <div className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full" />
+                      Menambahkan...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <rect x="3" y="4" width="18" height="18" rx="2" strokeWidth={2} />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4" />
+                      </svg>
+                      Buat Pengingat
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -150,7 +268,7 @@ export default function KegiatanMasjid() {
         )}
       </div>
 
-      {/* Pagination selalu di bawah */}
+      {/* Pagination */}
       <div className="flex items-center justify-center gap-2 mt-6">
         <button
           onClick={() => setPage((p) => Math.max(1, p - 1))}
