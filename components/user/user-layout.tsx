@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function UserLayout({
   children,
@@ -10,6 +11,12 @@ export default function UserLayout({
   title?: string;
 }) {
   const router = useRouter();
+  const quickLinks = [
+  { name: "Beranda", href: "/" },
+  { name: "Waktu Sholat", href: "/#waktu-sholat" },
+  { name: "Jadwal Operasional", href: "/#jadwal-operasional" },
+  { name: "Berita Terbaru", href: "/#berita-dan-artikel" },
+];
 
   return (
     <div className="bg-[#e8f5e9] min-h-screen flex flex-col items-center">
@@ -73,12 +80,13 @@ export default function UserLayout({
             {/* Kolom 2 - Quick Links */}
             <div className="flex flex-col gap-3">
               <h3 className="text-green-400 font-bold text-sm mb-1">Quick Links</h3>
-              {["Beranda", "Waktu Sholat", "Jadwal Operasional", "Tentang Kami", "Berita Terbaru", "Galeri Foto"].map((link) => (
+              {quickLinks.map((link) => (
                 <span
-                  key={link}
+                  key={link.href}
                   className="text-green-200 text-sm cursor-pointer hover:text-white transition"
+                  onClick={() => router.push(link.href)}
                 >
-                  {link}
+                  {link.name}
                 </span>
               ))}
             </div>
@@ -102,13 +110,17 @@ export default function UserLayout({
         <div className="border-t border-green-800 px-6 py-4">
           <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
             <p className="text-[#FFFFFF4D] text-xs">Copyright © 2020 Wapena. All Rights Reserved.</p>
-            <p className="text-[#FFFFFF4D] text-xs flex items-center gap-1">
-              Dibuat dengan
-              <svg className="w-3 h-3 text-red-400 fill-red-400" viewBox="0 0 24 24">
-                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-              </svg>
-              untuk umat
-            </p>
+             <Link
+              href="/admin/panel"
+              className="text-[#FFFFFF4D] text-xs flex items-center gap-1 hover:text-white transition"
+            >
+              <img
+                src="/images/admin-icon.png"
+                alt="Admin Icon"
+                className="w-3 h-3 inline-block"
+              />
+              Admin
+            </Link>
           </div>
         </div>
       </footer>

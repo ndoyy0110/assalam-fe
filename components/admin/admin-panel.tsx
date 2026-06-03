@@ -12,58 +12,77 @@ const menuItems = [
   {
     label: "Berita dan Artikel",
     href: "/admin/berita-dan-artikel",
-    icon: (
-      <Image src="/images/newspaper.png" alt="Berita dan Artikel" width={42} height={42} />
-    ),
+    icon: <Image src="/images/newspaper.png" alt="Berita dan Artikel" width={42} height={42} />,
   },
   {
     label: "Jadwal Operasional",
     href: "/admin/jadwal-operasional",
-    icon: (
-      <Image src="/images/clock.png" alt="Jadwal Operasional" width={42} height={42} />
-    ),
+    icon: <Image src="/images/clock.png" alt="Jadwal Operasional" width={42} height={42} />,
   },
   {
     label: "Kegiatan Masjid",
     href: "/admin/kegiatan-masjid",
-    icon: (
-      <Image src="/images/calendar.png" alt="Kegiatan Masjid" width={42} height={42} />
-    ),
+    icon: <Image src="/images/calendar.png" alt="Kegiatan Masjid" width={42} height={42} />,
   },
 ];
 
 interface Stats {
-  totalArtikel: number;
   dipublikasi: number;
+  draft: number;
   totalKegiatan: number;
+  kegiatanMendatang: number;
+  hariBuka: number;
+  hariTutup: string[];
 }
 
 export default function AdminPanelPage() {
   const router = useRouter();
-  const [stats, setStats] = useState<Stats>({ totalArtikel: 0, dipublikasi: 0, totalKegiatan: 0 });
+  const [stats, setStats] = useState<Stats>({
+    dipublikasi: 0,
+    draft: 0,
+    totalKegiatan: 0,
+    kegiatanMendatang: 0,
+    hariBuka: 7,
+    hariTutup: [],
+  });
   const [loadingStats, setLoadingStats] = useState(true);
   const [visitors, setVisitors] = useState<number | null>(null);
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [resNews, resActivity, resVisitors] = await Promise.all([
+        const [resNews, resActivity, resOpHours, resVisitors] = await Promise.all([
           fetch(`${API_URL}/api/news`),
           fetch(`${API_URL}/api/activities`),
+          fetch(`${API_URL}/api/operational-hours`),
           fetch("/api/visitors"),
         ]);
 
         const jsonNews = await resNews.json();
         const jsonActivity = await resActivity.json();
+        const jsonOpHours = await resOpHours.json();
         const jsonVisitors = await resVisitors.json();
 
         const news = jsonNews.data || [];
         const activities = jsonActivity.data || [];
+        const opHours = jsonOpHours.data || [];
+
+        const now = new Date();
+        const kegiatanMendatang = activities.filter(
+          (a: { endTime: string }) => new Date(a.endTime) >= now
+        ).length;
+
+        const hariTutup: string[] = opHours
+          .filter((h: { isClosed: boolean }) => h.isClosed)
+          .map((h: { day: string }) => h.day);
 
         setStats({
-          totalArtikel: news.length,
           dipublikasi: news.filter((n: { status: string }) => n.status === "PUBLISHED").length,
+          draft: news.filter((n: { status: string }) => n.status === "DRAFT").length,
           totalKegiatan: activities.length,
+          kegiatanMendatang,
+          hariBuka: 7 - hariTutup.length,
+          hariTutup,
         });
 
         setVisitors(jsonVisitors.visitors ?? null);
@@ -86,7 +105,7 @@ export default function AdminPanelPage() {
 
       {/* HEADER */}
       <div className="w-full bg-green-900 flex flex-col items-center pb-10">
-        <div className="flex w-full max-w-3xl px-4 sm:px-6 py-4 mt-5 rounded-3xl bg-white/10 items-center justify-end">
+        <div className="flex w-full max-w-6xl px-4 sm:px-6 py-4 mt-5 rounded-3xl bg-white/10 items-center justify-end">
           <div className="flex items-center gap-2">
             <span className="text-green-200 text-sm font-medium">Halo, Admin!</span>
             <div className="w-8 h-8 rounded-full bg-white/20 border border-white/30 flex items-center justify-center text-white font-bold text-sm">
@@ -99,17 +118,17 @@ export default function AdminPanelPage() {
         </div>
       </div>
 
-      <div className="w-full max-w-lg px-4 sm:px-6 py-8 flex flex-col gap-6">
+      <div className="w-full max-w-6xl px-4 sm:px-6 py-8 flex flex-col gap-6">
 
         {/* ── MENU UTAMA ── */}
         <div>
-          <p className="text-sm font-bold text-gray-700 mb-3">Menu Utama</p>
+          <p className="text-sm font-bold text-[#14532D] mb-3">Menu Utama</p>
           <div className="grid grid-cols-3 gap-3">
             {menuItems.map((item) => (
               <button
                 key={item.href}
                 onClick={() => router.push(item.href)}
-                className="bg-white rounded-2xl py-5 px-3 flex flex-col items-center gap-3 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 w-full"
+                className="aspect-square bg-white rounded-2xl p-3 flex flex-col items-center justify-center gap-3 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
               >
                 <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
                   {item.icon}
@@ -124,41 +143,71 @@ export default function AdminPanelPage() {
 
         {/* ── STATISTIK RINGKAS ── */}
         <div>
-          <p className="text-sm font-bold text-gray-700 mb-3">Statistik Ringkas</p>
+          <p className="text-sm font-bold text-[#14532D] mb-3">Statistik Ringkas</p>
           <div className="grid grid-cols-2 gap-3">
 
-            {/* Total Artikel */}
-            <div className="bg-white rounded-2xl p-4 flex flex-col gap-2 shadow-sm">
+            {/* Berita dan Artikel */}
+            <div
+              className="bg-white rounded-2xl p-4 flex flex-col gap-2 shadow-sm cursor-pointer hover:shadow-md transition"
+            >
               <div className="w-9 h-9 rounded-xl bg-green-100 flex items-center justify-center">
-                <Image src="/images/newspaper.png" alt="Artikel" width={20} height={20} />
+                <Image src="/images/newspaper.png" alt="Artikel" width={32} height={32} />
               </div>
               {loadingStats ? (
                 <div className="animate-pulse h-7 w-10 bg-gray-200 rounded" />
               ) : (
-                <p className="text-2xl font-bold text-gray-800">{stats.totalArtikel}</p>
+                <p className="text-2xl font-bold text-gray-800">{stats.dipublikasi}</p>
               )}
-              <p className="text-sm text-gray-600 font-medium">Total Artikel</p>
+              <p className="text-sm text-gray-600 font-medium">Artikel Dipublikasi</p>
               {!loadingStats && (
-                <p className="text-xs text-green-600 font-semibold">
-                  {stats.dipublikasi} dipublikasi
-                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-green-600 font-semibold bg-green-50 px-2 py-0.5 rounded-full">
+                    {stats.dipublikasi} diterbitkan
+                  </span>
+                  {stats.draft > 0 && (
+                    <span className="text-xs text-gray-500 font-semibold bg-gray-100 px-2 py-0.5 rounded-full">
+                      {stats.draft} draft
+                    </span>
+                  )}
+                </div>
               )}
             </div>
 
             {/* Jadwal Operasional */}
-            <div className="bg-white rounded-2xl p-4 flex flex-col gap-2 shadow-sm">
+            <div
+              className="bg-white rounded-2xl p-4 flex flex-col gap-2 shadow-sm cursor-pointer hover:shadow-md transition"
+            >
               <div className="w-9 h-9 rounded-xl bg-green-100 flex items-center justify-center">
-                <Image src="/images/clock.png" alt="Jadwal" width={20} height={20} />
+                <Image src="/images/clock.png" alt="Jadwal" width={32} height={32} />
               </div>
-              <div className="h-7" />
+              {loadingStats ? (
+                <div className="animate-pulse h-7 w-10 bg-gray-200 rounded" />
+              ) : (
+                <p className="text-2xl font-bold text-gray-800">
+                  {stats.hariBuka}
+                  <span className="text-sm font-normal text-gray-400 ml-1">hari/minggu</span>
+                </p>
+              )}
               <p className="text-sm text-gray-600 font-medium">Jadwal Operasional</p>
-              <p className="text-xs text-green-600 font-semibold">Setiap hari buka</p>
+              {!loadingStats && (
+                stats.hariTutup.length === 0 ? (
+                  <span className="text-xs text-green-600 font-semibold bg-green-50 px-2 py-0.5 rounded-full w-fit">
+                    Buka setiap hari
+                  </span>
+                ) : (
+                  <span className="text-xs text-red-500 font-semibold bg-red-50 px-2 py-0.5 rounded-full w-fit">
+                    Tutup: {stats.hariTutup.join(", ")}
+                  </span>
+                )
+              )}
             </div>
 
             {/* Kegiatan Masjid */}
-            <div className="bg-white rounded-2xl p-4 flex flex-col gap-2 shadow-sm">
+            <div
+              className="bg-white rounded-2xl p-4 flex flex-col gap-2 shadow-sm cursor-pointer hover:shadow-md transition"
+            >
               <div className="w-9 h-9 rounded-xl bg-green-100 flex items-center justify-center">
-                <Image src="/images/calendar.png" alt="Kegiatan" width={20} height={20} />
+                <Image src="/images/calendar.png" alt="Kegiatan" width={32} height={32} />
               </div>
               {loadingStats ? (
                 <div className="animate-pulse h-7 w-10 bg-gray-200 rounded" />
@@ -166,15 +215,24 @@ export default function AdminPanelPage() {
                 <p className="text-2xl font-bold text-gray-800">{stats.totalKegiatan}</p>
               )}
               <p className="text-sm text-gray-600 font-medium">Kegiatan Masjid</p>
+              {!loadingStats && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-green-600 font-semibold bg-green-50 px-2 py-0.5 rounded-full">
+                    {stats.kegiatanMendatang} mendatang
+                  </span>
+                  {stats.totalKegiatan - stats.kegiatanMendatang > 0 && (
+                    <span className="text-xs text-gray-400 font-semibold bg-gray-100 px-2 py-0.5 rounded-full">
+                      {stats.totalKegiatan - stats.kegiatanMendatang} selesai
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* Pengunjung Bulan Ini - dari Vercel Analytics */}
+            {/* Pengunjung Bulan Ini */}
             <div className="bg-white rounded-2xl p-4 flex flex-col gap-2 shadow-sm">
               <div className="w-9 h-9 rounded-xl bg-green-100 flex items-center justify-center">
-                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M17 20h5v-2a4 4 0 00-4-4h-1M9 20H4v-2a4 4 0 014-4h1m4-4a4 4 0 100-8 4 4 0 000 8zm6 0a3 3 0 100-6 3 3 0 000 6zM3 17a3 3 0 100-6 3 3 0 000 6z" />
-                </svg>
+                <Image src="/images/pengunjung.png" alt="Pengunjung" width={32} height={32} />
               </div>
               {loadingStats ? (
                 <div className="animate-pulse h-7 w-16 bg-gray-200 rounded" />
@@ -184,8 +242,16 @@ export default function AdminPanelPage() {
                 </p>
               )}
               <p className="text-sm text-gray-600 font-medium">Pengunjung Bulan Ini</p>
-              {!loadingStats && visitors !== null && (
-                <p className="text-xs text-green-600 font-semibold">via Vercel Analytics</p>
+              {!loadingStats && (
+                visitors !== null ? (
+                  <span className="text-xs text-green-600 font-semibold bg-green-50 px-2 py-0.5 rounded-full w-fit">
+                    via Vercel Analytics
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-400 font-semibold bg-gray-100 px-2 py-0.5 rounded-full w-fit">
+                    Belum ada data
+                  </span>
+                )
               )}
             </div>
 

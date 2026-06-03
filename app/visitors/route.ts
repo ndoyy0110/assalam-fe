@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 
 export async function GET() {
   try {
-    const teamId = process.env.VERCEL_TEAM_ID;
     const projectId = process.env.VERCEL_PROJECT_ID;
+    const teamId = process.env.VERCEL_TEAM_ID;
     const token = process.env.VERCEL_ACCESS_TOKEN;
 
     if (!token || !projectId) {

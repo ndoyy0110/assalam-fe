@@ -1,11 +1,17 @@
 "use client";
-
+import Link from "next/link";
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGoogleAuth } from "@/context/GoogleAuthContext";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://assalam-be.vercel.app";
 
+const quickLinks = [
+  { name: "Beranda", href: "/" },
+  { name: "Waktu Sholat", href: "/#waktu-sholat" },
+  { name: "Jadwal Operasional", href: "/#jadwal-operasional" },
+  { name: "Berita Terbaru", href: "/#berita-dan-artikel" },
+];
 interface PrayerTimes {
   Fajr: string;
   Dhuhr: string;
@@ -379,6 +385,7 @@ function HomePageContent() {
       {/* ── JADWAL SHOLAT ── */}
       <div className="w-full max-w-2xl mx-auto px-4 py-12 flex flex-col gap-6">
         <div className="text-center flex flex-col gap-1">
+          <section id="waktu-sholat" />
           <p className="text-[#22C55E] text-xs font-bold tracking-widest uppercase">Jadwal Sholat</p>
           <h2 className="text-gray-800 text-2xl font-bold">Waktu Sholat Hari Ini</h2>
         </div>
@@ -435,6 +442,7 @@ function HomePageContent() {
       <section className="bg-white w-full">
         <div className="w-full max-w-2xl mx-auto px-4 py-12 flex flex-col gap-6">
           <div className="text-center flex flex-col gap-1">
+            <section id="jadwal-operasional" />
             <p className="text-green-600 text-xs font-bold tracking-widest uppercase">Jadwal Operasional</p>
             <h2 className="text-gray-800 text-2xl font-bold">Jam Buka Masjid</h2>
           </div>
@@ -604,6 +612,7 @@ function HomePageContent() {
       <section className="bg-white w-full">
         <div className="w-full max-w-4xl mx-auto px-4 py-12 flex flex-col gap-6">
           <div className="text-center flex flex-col gap-1">
+            <section id="berita-dan-artikel" />
             <p className="text-green-600 text-xs font-bold tracking-widest uppercase">Berita dan Artikel</p>
             <h2 className="text-gray-800 text-2xl font-bold">Kabar Terbaru dari Masjid</h2>
           </div>
@@ -785,8 +794,14 @@ function HomePageContent() {
             </div>
             <div className="flex flex-col gap-3">
               <h3 className="text-green-400 font-bold text-sm mb-1">Quick Links</h3>
-              {["Beranda", "Waktu Sholat", "Jadwal Operasional", "Tentang Kami", "Berita Terbaru", "Galeri Foto"].map((link) => (
-                <span key={link} className="text-green-200 text-sm cursor-pointer hover:text-white transition">{link}</span>
+              {quickLinks.map((link) => (
+                <span
+                  key={link.href}
+                  className="text-green-200 text-sm cursor-pointer hover:text-white transition"
+                  onClick={() => router.push(link.href)}
+                >
+                  {link.name}
+                </span>
               ))}
             </div>
             <div className="flex flex-col gap-4">
@@ -804,13 +819,17 @@ function HomePageContent() {
         <div className="border-t border-green-800 px-6 py-4">
           <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
             <p className="text-[#FFFFFF4D] text-xs">Copyright © 2020 Wapena. All Rights Reserved.</p>
-            <p className="text-[#FFFFFF4D] text-xs flex items-center gap-1">
-              Dibuat dengan
-              <svg className="w-3 h-3 text-red-400 fill-red-400" viewBox="0 0 24 24">
-                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-              </svg>
-              untuk umat
-            </p>
+             <Link
+              href="/admin/panel"
+              className="text-[#FFFFFF4D] text-xs flex items-center gap-1 hover:text-white transition"
+            >
+              <img
+                src="/images/admin-icon.png"
+                alt="Admin Icon"
+                className="w-3 h-3 inline-block"
+              />
+              Admin
+            </Link>
           </div>
         </div>
       </footer>
