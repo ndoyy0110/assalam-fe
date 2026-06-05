@@ -4,7 +4,7 @@ import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://assalam-be.vercel.app";
+  "https://assalam-be-production-341d.up.railway.app";
 
 export default function AddBeritaArtikel() {
   const router = useRouter();

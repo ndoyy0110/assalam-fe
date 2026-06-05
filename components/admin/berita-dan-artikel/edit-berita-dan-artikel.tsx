@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://assalam-be.vercel.app";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://assalam-be-production-341d.up.railway.app";
 
 interface NewsDetail {
   id: number;
@@ -32,16 +32,12 @@ export default function EditBeritaArtikel() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!id) {
-      setError("ID artikel tidak ditemukan.");
-      setLoading(false);
-      return;
-    }
     const fetchDetail = async () => {
       try {
         const res = await fetch(`${API_URL}/api/news/${id}`);
         const json = await res.json();
         if (!res.ok) throw new Error(json.message || "Gagal mengambil data");
+
         const d: NewsDetail = json.data;
         setForm({ title: d.title, summary: d.summary || "", content: d.content });
         setStatus(d.status);
@@ -52,6 +48,7 @@ export default function EditBeritaArtikel() {
         setLoading(false);
       }
     };
+
     fetchDetail();
   }, [id]);
 

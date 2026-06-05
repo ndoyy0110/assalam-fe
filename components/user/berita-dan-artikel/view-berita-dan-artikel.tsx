@@ -5,7 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://assalam-be.vercel.app";
+  "https://assalam-be-production-341d.up.railway.app";
 
 interface NewsDetail {
   id: number;
@@ -20,7 +20,9 @@ interface NewsDetail {
 
 const formatTanggal = (iso: string) =>
   new Date(iso).toLocaleDateString("id-ID", {
-    day: "numeric", month: "long", year: "numeric",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
   });
 
 export default function ViewBeritaArtikel() {
@@ -37,39 +39,63 @@ export default function ViewBeritaArtikel() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    if (!id) {
-      setError("ID artikel tidak ditemukan.");
-      setLoading(false);
-      return;
-    }
+    // ✅ guard tanpa setState langsung
+    if (!id) return;
+    
     const fetchData = async () => {
+      setLoading(true);
+      setError(null);
+
       try {
         const [resDetail, resAll] = await Promise.all([
           fetch(`${API_URL}/api/news/${id}`),
           fetch(`${API_URL}/api/news`),
         ]);
+
         const jsonDetail = await resDetail.json();
         const jsonAll = await resAll.json();
-        if (!resDetail.ok) throw new Error(jsonDetail.message || "Gagal mengambil data");
+
+        if (!resDetail.ok) {
+          throw new Error(jsonDetail.message || "Gagal mengambil data");
+        }
+
         setArtikel(jsonDetail.data);
+
         const others = (jsonAll.data || [])
-          .filter((a: NewsDetail) => String(a.id) !== String(id) && a.status === "PUBLISHED")
+          .filter(
+            (a: NewsDetail) =>
+              String(a.id) !== String(id) && a.status === "PUBLISHED"
+          )
           .slice(0, 4);
+
         setRelated(others);
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Gagal mengambil data");
+        setError(
+          err instanceof Error ? err.message : "Gagal mengambil data"
+        );
       } finally {
         setLoading(false);
       }
     };
+
     fetchData();
   }, [id]);
 
   const handleCopy = () => {
+    if (typeof window === "undefined") return;
     navigator.clipboard.writeText(window.location.href);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  // ✅ handle missing ID di render (bukan di effect)
+  if (!id) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-gray-500">
+        ID artikel tidak ditemukan.
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -82,16 +108,18 @@ export default function ViewBeritaArtikel() {
 
   if (error || !artikel) {
     return (
-      <div className="min-h-screen bg-[#e8f5e9] flex items-center justify-center">
-        <p className="text-gray-500 text-sm">{error || "Artikel tidak ditemukan."}</p>
+      <div className="min-h-screen flex items-center justify-center bg-[#e8f5e9]">
+        <p className="text-gray-500 text-sm">
+          {error || "Artikel tidak ditemukan."}
+        </p>
       </div>
     );
   }
 
   const paragraphs = artikel.content.split("\n\n").filter(Boolean);
   const tanggal = formatTanggal(artikel.createdAt);
-  const pageUrl = typeof window !== "undefined" ? window.location.href : "";
-
+  const pageUrl =
+    typeof window !== "undefined" ? window.location.href : "";
   return (
     <div className="min-h-screen bg-[#e8f5e9] flex flex-col">
 

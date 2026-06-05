@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://assalam-be.vercel.app";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://assalam-be-production-341d.up.railway.app";
 
 type StatusType = "PUBLISHED" | "DRAFT";
 
@@ -52,8 +52,6 @@ export default function BeritaArtikelPage() {
   const published = data.filter((a) => a.status === "PUBLISHED");
   const featured = published[0] ?? null;
   const terbaru = published.slice(1, 3);
-
-  // lainnya diambil dari published agar id-nya valid saat di-view
   const totalPages = Math.ceil(published.length / ITEMS_PER_PAGE) || 1;
   const lainnya = published.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,

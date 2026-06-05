@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://assalam-be.vercel.app";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://assalam-be-production-341d.up.railway.app";
 
 // Ambil tanggal dari ISO → "YYYY-MM-DD"
 const isoToDate = (iso: string): string => iso?.slice(0, 10) || "";
@@ -33,18 +33,18 @@ export default function EditKegiatanMasjid() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!id) {
-      setError("ID kegiatan tidak ditemukan.");
-      setLoading(false);
-      return;
-    }
+    if (!id) return;
+
     const fetchDetail = async () => {
       try {
         setLoading(true);
+
         const res = await fetch(`${API_URL}/api/activities/${id}`);
         const json = await res.json();
         if (!res.ok) throw new Error(json.message || "Gagal mengambil data");
+
         const d = json.data;
+
         setForm({
           title: d.title || "",
           description: d.description || "",
@@ -54,12 +54,12 @@ export default function EditKegiatanMasjid() {
           endTime: isoToTime(d.endTime),
         });
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "Gagal mengambil data";
-        setError(message);
+        setError(err instanceof Error ? err.message : "Gagal mengambil data");
       } finally {
         setLoading(false);
       }
     };
+
     fetchDetail();
   }, [id]);
 

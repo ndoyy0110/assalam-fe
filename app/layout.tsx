@@ -26,16 +26,16 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return (
-    <html lang="en">
-      <body>
-        <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!}>
-          <GoogleAuthProvider>
-            {children}
-          </GoogleAuthProvider>
-        </GoogleOAuthProvider>
-        <Analytics />
-      </body>
-    </html>
-  );
+return (
+  <html lang="en">
+    <body suppressHydrationWarning>  
+      <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!}>
+        <GoogleAuthProvider>
+          {children}
+        </GoogleAuthProvider>
+      </GoogleOAuthProvider>
+      <Analytics />
+    </body>
+  </html>
+);
 }

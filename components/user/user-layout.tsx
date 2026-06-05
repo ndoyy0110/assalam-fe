@@ -110,17 +110,6 @@ export default function UserLayout({
         <div className="border-t border-green-800 px-6 py-4">
           <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
             <p className="text-[#FFFFFF4D] text-xs">Copyright © 2020 Wapena. All Rights Reserved.</p>
-             <Link
-              href="/admin/panel"
-              className="text-[#FFFFFF4D] text-xs flex items-center gap-1 hover:text-white transition"
-            >
-              <img
-                src="/images/admin-icon.png"
-                alt="Admin Icon"
-                className="w-3 h-3 inline-block"
-              />
-              Admin
-            </Link>
           </div>
         </div>
       </footer>
