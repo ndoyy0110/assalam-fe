@@ -56,7 +56,6 @@ export default function AddBeritaArtikel() {
         body: formData,
       });
 
-      // 🔥 safety parsing
       let json;
       try {
         json = await res.json();

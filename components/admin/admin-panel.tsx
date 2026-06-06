@@ -37,7 +37,7 @@ interface Stats {
 
 export default function AdminPanelPage() {
   const router = useRouter();
-  const { googleUser, logout, isLoading } = useGoogleAuth();
+  const { googleUser, logout } = useGoogleAuth();
 
   const [stats, setStats] = useState<Stats>({
     dipublikasi: 0,
@@ -48,97 +48,89 @@ export default function AdminPanelPage() {
     hariTutup: [],
   });
   const [loadingStats, setLoadingStats] = useState(true);
-  const [visitors, setVisitors] = useState<number | null>(null);
 
-  /**
-   * Guard: Tunggu auth selesai loading, lalu cek role.
-   * - Belum login          → redirect ke /
-   * - Login tapi bukan ADMIN → redirect ke /
-   * - Login sebagai ADMIN  → lanjut render halaman
-   */
+  // Guard: redirect jika bukan ADMIN
   useEffect(() => {
-    // Jangan redirect selama auth masih loading
-    if (isLoading) return;
-
     if (!googleUser) {
       router.replace("/");
       return;
     }
-
     if (googleUser.role !== "ADMIN") {
       router.replace("/");
     }
-  }, [googleUser, isLoading, router]);
+  }, [googleUser, router]);
 
   useEffect(() => {
-    // Jangan fetch stats sebelum auth selesai atau jika bukan ADMIN
-    if (isLoading || !googleUser || googleUser.role !== "ADMIN") return;
-
     const fetchStats = async () => {
+      setLoadingStats(true);
       try {
-        const [resNews, resActivity, resOpHours, resVisitors] = await Promise.all([
+        const [resNews, resActivity, resOpHours] = await Promise.all([
           fetch(`${API_URL}/api/news`),
           fetch(`${API_URL}/api/activities`),
           fetch(`${API_URL}/api/operational-hours`),
-          fetch("/api/visitors"),
         ]);
 
         const jsonNews = await resNews.json();
         const jsonActivity = await resActivity.json();
         const jsonOpHours = await resOpHours.json();
-        const jsonVisitors = await resVisitors.json();
 
-        const news = jsonNews.data || [];
-        const activities = jsonActivity.data || [];
-        const opHours = jsonOpHours.data || [];
+        // Debug — hapus setelah data muncul
+        console.log("=== DEBUG STATS ===");
+        console.log("API_URL:", API_URL);
+        console.log("RAW NEWS:", JSON.stringify(jsonNews, null, 2));
+        console.log("RAW ACTIVITY:", JSON.stringify(jsonActivity, null, 2));
+        console.log("RAW OP HOURS:", JSON.stringify(jsonOpHours, null, 2));
+
+        // Coba berbagai kemungkinan struktur response
+        const news = jsonNews.data ?? jsonNews.articles ?? jsonNews ?? [];
+        const activities = jsonActivity.data ?? jsonActivity.activities ?? jsonActivity ?? [];
+        const opHours = jsonOpHours.data ?? jsonOpHours.hours ?? jsonOpHours ?? [];
+
+        console.log("PARSED news array:", news);
+        console.log("PARSED activities array:", activities);
+        console.log("PARSED opHours array:", opHours);
 
         const now = new Date();
-        const kegiatanMendatang = activities.filter(
-          (a: { endTime: string }) => new Date(a.endTime) >= now
-        ).length;
+        const kegiatanMendatang = Array.isArray(activities)
+          ? activities.filter((a: { endTime: string }) => new Date(a.endTime) >= now).length
+          : 0;
 
-        const hariTutup: string[] = opHours
-          .filter((h: { isClosed: boolean }) => h.isClosed)
-          .map((h: { day: string }) => h.day);
+        const hariTutup: string[] = Array.isArray(opHours)
+          ? opHours
+              .filter((h: { isClosed: boolean }) => h.isClosed)
+              .map((h: { day: string }) => h.day)
+          : [];
 
-        setStats({
-          dipublikasi: news.filter((n: { status: string }) => n.status === "PUBLISHED").length,
-          draft: news.filter((n: { status: string }) => n.status === "DRAFT").length,
-          totalKegiatan: activities.length,
+        const newStats = {
+          dipublikasi: Array.isArray(news)
+            ? news.filter((n: { status: string }) => n.status === "PUBLISHED").length
+            : 0,
+          draft: Array.isArray(news)
+            ? news.filter((n: { status: string }) => n.status === "DRAFT").length
+            : 0,
+          totalKegiatan: Array.isArray(activities) ? activities.length : 0,
           kegiatanMendatang,
           hariBuka: 7 - hariTutup.length,
           hariTutup,
-        });
+        };
 
-        setVisitors(jsonVisitors.visitors ?? null);
-      } catch {
-        // biarkan default
+        console.log("FINAL STATS:", newStats);
+        setStats(newStats);
+      } catch (err) {
+        console.error("Gagal fetch stats:", err);
       } finally {
         setLoadingStats(false);
       }
     };
 
     fetchStats();
-  }, [googleUser, isLoading]);
+  }, []);
 
   const formatVisitors = (count: number) => {
     if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
     return count.toString();
   };
 
-  // Tampilkan loading screen selama auth masih dicek
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#e8f5e9] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="animate-spin w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full" />
-          <p className="text-green-700 text-sm font-medium">Memverifikasi akses...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Jika bukan ADMIN, jangan render apapun (useEffect akan redirect)
   if (!googleUser || googleUser.role !== "ADMIN") {
     return null;
   }
@@ -205,6 +197,7 @@ export default function AdminPanelPage() {
         <div>
           <p className="text-sm font-bold text-[#14532D] mb-3">Statistik Ringkas</p>
           <div className="grid grid-cols-2 gap-3">
+
             {/* Berita dan Artikel */}
             <div className="bg-white rounded-2xl p-4 flex flex-col gap-2 shadow-sm cursor-pointer hover:shadow-md transition">
               <div className="w-9 h-9 rounded-xl bg-green-100 flex items-center justify-center">
@@ -281,30 +274,18 @@ export default function AdminPanelPage() {
               )}
             </div>
 
-            {/* Pengunjung Bulan Ini */}
+            {/* Pengunjung — dihapus karena endpoint /api/visitors tidak ada (404) */}
             <div className="bg-white rounded-2xl p-4 flex flex-col gap-2 shadow-sm">
               <div className="w-9 h-9 rounded-xl bg-green-100 flex items-center justify-center">
                 <Image src="/images/pengunjung.png" alt="Pengunjung" width={32} height={32} />
               </div>
-              {loadingStats ? (
-                <div className="animate-pulse h-7 w-16 bg-gray-200 rounded" />
-              ) : (
-                <p className="text-2xl font-bold text-gray-800">
-                  {visitors !== null ? formatVisitors(visitors) : "—"}
-                </p>
-              )}
+              <p className="text-2xl font-bold text-gray-800">—</p>
               <p className="text-sm text-gray-600 font-medium">Pengunjung Bulan Ini</p>
-              {!loadingStats &&
-                (visitors !== null ? (
-                  <span className="text-xs text-green-600 font-semibold bg-green-50 px-2 py-0.5 rounded-full w-fit">
-                    via Vercel Analytics
-                  </span>
-                ) : (
-                  <span className="text-xs text-gray-400 font-semibold bg-gray-100 px-2 py-0.5 rounded-full w-fit">
-                    Belum ada data
-                  </span>
-                ))}
+              <span className="text-xs text-gray-400 font-semibold bg-gray-100 px-2 py-0.5 rounded-full w-fit">
+                Belum ada data
+              </span>
             </div>
+
           </div>
         </div>
       </div>

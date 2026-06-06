@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://assalam-be-production-341d.up.railway.app";
@@ -32,9 +32,7 @@ export default function BeritaArtikelPage() {
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
-  useEffect(() => { fetchNews(); }, []);
-
-  const fetchNews = async () => {
+  const fetchNews = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -47,7 +45,7 @@ export default function BeritaArtikelPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const published = data.filter((a) => a.status === "PUBLISHED");
   const featured = published[0] ?? null;

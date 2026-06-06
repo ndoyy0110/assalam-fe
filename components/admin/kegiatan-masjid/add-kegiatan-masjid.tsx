@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { getAccessToken } from "@/context/GoogleAuthContext";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://assalam-be-production-341d.up.railway.app";
 
@@ -31,23 +32,33 @@ export default function AddKegiatanMasjid() {
       return;
     }
 
+    // ✅ Cek token sebelum kirim
+    const token = getAccessToken();
+    if (!token) {
+      setError("Access token tidak ditemukan! Silakan login ulang.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      // BE butuh field terpisah: startDate, startTime, endDate, endTime
       const body = {
         title: form.title,
         description: form.description,
-        startDate: form.startDate,   // "YYYY-MM-DD"
-        startTime: form.startTime,   // "HH:mm"
-        endDate: form.endDate,       // "YYYY-MM-DD"
-        endTime: form.endTime,       // "HH:mm"
+        startDate: form.startDate,
+        startTime: form.startTime,
+        endDate: form.endDate,
+        endTime: form.endTime,
       };
 
       const res = await fetch(`${API_URL}/api/activities`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          // ✅ Kirim token
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify(body),
       });
 
