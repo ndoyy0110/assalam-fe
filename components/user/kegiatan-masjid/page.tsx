@@ -54,7 +54,6 @@ export default function KegiatanMasjid() {
     setToastVisible(true);
   }, []);
 
-  // ✅ Deklarasi SEBELUM useEffect yang memakainya
   const fetchKegiatan = useCallback(async () => {
     try {
       setLoading(true);
@@ -71,8 +70,26 @@ export default function KegiatanMasjid() {
   }, []);
 
   useEffect(() => {
-    fetchKegiatan();
-  }, [fetchKegiatan]);
+  let cancelled = false;
+
+  const load = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetch(`${API_URL}/api/activities`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || "Gagal mengambil data");
+      if (!cancelled) setData(json.data || []);
+    } catch (err: unknown) {
+      if (!cancelled) setError(err instanceof Error ? err.message : "Gagal mengambil data");
+    } finally {
+      if (!cancelled) setLoading(false);
+    }
+  };
+
+  load();
+  return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -233,26 +250,6 @@ export default function KegiatanMasjid() {
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
             </svg>
             Masuk dengan Google
-          </button>
-        </div>
-      )}
-
-      {/* Info user jika sudah login */}
-      {googleUser && (
-        <div className="mb-4 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            {googleUser.picture && (
-              <img src={googleUser.picture} alt={googleUser.name} className="w-7 h-7 rounded-full" />
-            )}
-            <p className="text-xs text-gray-700">
-              Login sebagai <span className="font-semibold text-gray-800">{googleUser.name}</span>
-            </p>
-          </div>
-          <button
-            onClick={logout}
-            className="text-xs text-red-400 hover:text-red-600 font-semibold transition"
-          >
-            Keluar
           </button>
         </div>
       )}

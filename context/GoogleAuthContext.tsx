@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 
@@ -29,30 +30,25 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
   const [googleUser, setGoogleUser] = useState<GoogleUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check existing session on mount
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const res = await fetch(`${API_URL}/api/auth/refresh`, {
-          method: "POST",
-          credentials: "include",
-        });
-        const data = await res.json();
-        if (data.success && data.data?.accessToken) {
-          memoryAccessToken = data.data.accessToken;
-          const savedUser = localStorage.getItem("googleUser");
-          if (savedUser) setGoogleUser(JSON.parse(savedUser));
-        }
-      } catch (error) {
-        console.error("Check auth error:", error);
-      } finally {
-        setIsLoading(false);
+    try {
+      const savedToken = localStorage.getItem("accessToken");
+      const savedUser = localStorage.getItem("googleUser");
+
+      if (savedToken && savedUser) {
+        memoryAccessToken = savedToken;
+        setGoogleUser(JSON.parse(savedUser));
       }
-    };
-    checkAuth();
+    } catch (error) {
+      console.error("Restore session error:", error);
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("googleUser");
+      memoryAccessToken = null;
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  // Handler credential dari Google — dapat ID Token (eyJ...)
   const handleCredentialResponse = useCallback(async (response: { credential: string }) => {
     try {
       const loginRes = await fetch(`${API_URL}/api/auth/google`, {
@@ -65,9 +61,13 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
       if (!data.success) throw new Error(data.message);
 
       const user: GoogleUser = data.data.user;
-      memoryAccessToken = data.data.accessToken;
-      setGoogleUser(user);
+      const token: string = data.data.accessToken;
+
+      memoryAccessToken = token;
+      localStorage.setItem("accessToken", token);
       localStorage.setItem("googleUser", JSON.stringify(user));
+
+      setGoogleUser(user);
 
       if (user.role === "ADMIN") {
         window.location.href = "/admin/panel";
@@ -80,7 +80,6 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Load Google GSI script & render button di container
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -92,7 +91,6 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
         cancel_on_tap_outside: true,
       });
 
-      // Render tombol Google di container yang visible
       const container = document.getElementById("g_id_signin_container");
       if (container) {
         (window as any).google.accounts.id.renderButton(container, {
@@ -118,14 +116,13 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
     }
   }, [handleCredentialResponse]);
 
-  // loginWithGoogle: klik Google button yang sudah dirender
   const loginWithGoogle = () => {
     const btn = document
       .getElementById("g_id_signin_container")
       ?.querySelector("div[role=button]") as HTMLElement | null;
 
     if (btn) {
-      btn.click(); // ✅ dipanggil langsung dari user gesture → tidak diblokir browser
+      btn.click();
     } else {
       alert("Google Sign In belum siap, coba lagi.");
     }
@@ -144,8 +141,9 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
       console.error("Logout error:", error);
     } finally {
       memoryAccessToken = null;
-      setGoogleUser(null);
+      localStorage.removeItem("accessToken");
       localStorage.removeItem("googleUser");
+      setGoogleUser(null);
       if ((window as any).google?.accounts?.id) {
         (window as any).google.accounts.id.disableAutoSelect();
       }
@@ -164,11 +162,6 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
       }}
     >
       {children}
-      {/* 
-        Google button dirender di sini — HARUS visible agar browser
-        menganggap klik sebagai user gesture yang sah.
-        Posisi fixed di luar layar agar tidak terlihat user.
-      */}
       <div
         id="g_id_signin_container"
         style={{

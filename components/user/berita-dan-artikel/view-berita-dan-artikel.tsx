@@ -17,6 +17,12 @@ interface NewsDetail {
   author: { name: string };
   createdAt: string;
 }
+  const quickLinks = [
+  { name: "Beranda", href: "/" },
+  { name: "Waktu Sholat", href: "/#waktu-sholat" },
+  { name: "Jadwal Operasional", href: "/#jadwal-operasional" },
+  { name: "Berita Terbaru", href: "/#berita-dan-artikel" },
+];
 
 const formatTanggal = (iso: string) =>
   new Date(iso).toLocaleDateString("id-ID", {
@@ -39,7 +45,6 @@ export default function ViewBeritaArtikel() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    // ✅ guard tanpa setState langsung
     if (!id) return;
     
     const fetchData = async () => {
@@ -277,7 +282,7 @@ export default function ViewBeritaArtikel() {
       </div>
 
       {/* FOOTER */}
-      <footer className="w-full bg-green-900">
+      <footer className="w-full bg-green-900 mt-12">
         <div className="max-w-6xl mx-auto px-6 py-10">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-10">
 
@@ -303,9 +308,13 @@ export default function ViewBeritaArtikel() {
             {/* Kolom 2 - Quick Links */}
             <div className="flex flex-col gap-3">
               <h3 className="text-green-400 font-bold text-sm mb-1">Quick Links</h3>
-              {["Beranda", "Waktu Sholat", "Jadwal Operasional", "Tentang Kami", "Berita Terbaru", "Galeri Foto"].map((link) => (
-                <span key={link} className="text-green-200 text-sm cursor-pointer hover:text-white transition">
-                  {link}
+              {quickLinks.map((link) => (
+                <span
+                  key={link.href}
+                  className="text-green-200 text-sm cursor-pointer hover:text-white transition"
+                  onClick={() => router.push(link.href)}
+                >
+                  {link.name}
                 </span>
               ))}
             </div>
@@ -329,13 +338,6 @@ export default function ViewBeritaArtikel() {
         <div className="border-t border-green-800 px-6 py-4">
           <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
             <p className="text-[#FFFFFF4D] text-xs">Copyright © 2020 Wapena. All Rights Reserved.</p>
-            <p className="text-[#FFFFFF4D] text-xs flex items-center gap-1">
-              Dibuat dengan
-              <svg className="w-3 h-3 text-red-400 fill-red-400" viewBox="0 0 24 24">
-                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-              </svg>
-              untuk umat
-            </p>
           </div>
         </div>
       </footer>

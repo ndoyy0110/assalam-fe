@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGoogleAuth } from "@/context/GoogleAuthContext";
 
@@ -163,33 +163,34 @@ function HomePageContent() {
   const [toast, setToast] = useState<Toast | null>(null);
   const [toastVisible, setToastVisible] = useState(false);
 
+  const showToast = useCallback((title: string, subtitle: string, success: boolean) => {
+    setToast({ title, subtitle, success });
+    setToastVisible(true); 
+  }, []);
+
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
     if (searchParams.get("loginRequired") === "true" && !accessToken) {
-      showToast("Login Diperlukan", "Silakan login dengan Google untuk ikut kegiatan.", false);
-      
+      showToast("Login Diperlukan", "Silakan klik tombol Masuk dengan Google.", false);
     }
-  }, [searchParams, accessToken]);
+  }, [searchParams, accessToken, showToast]);
 
   useEffect(() => {
-    if (toast) {
-      setToastVisible(true);
-      const timer = setTimeout(() => {
-        setToastVisible(false);
-        setTimeout(() => setToast(null), 300);
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
+    if (!toast) return;
+    const timer = setTimeout(() => {
+      setToastVisible(false);
+      setTimeout(() => setToast(null), 300);
+    }, 3000);
+    return () => clearTimeout(timer);
   }, [toast]);
-
-  const showToast = (title: string, subtitle: string, success: boolean) => {
-    setToast({ title, subtitle, success });
-  };
 
   useEffect(() => {
     const fetchPrayer = async () => {
@@ -249,31 +250,27 @@ function HomePageContent() {
   }, []);
 
   useEffect(() => {
-    if (accessToken && !loadingKegiatan) {
-      const refreshKegiatan = async () => {
-        try {
-          const res = await fetch(`${API_URL}/api/activities`, { credentials: "include" });
-          const json = await res.json();
-          setKegiatan((json.data || []).slice(0, 6));
-        } catch (err) {
-          console.error("Gagal refresh kegiatan:", err);
-        }
-      };
-      refreshKegiatan();
-    }
+    if (!accessToken || loadingKegiatan) return;
+    const refreshKegiatan = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/activities`, { credentials: "include" });
+        const json = await res.json();
+        setKegiatan((json.data || []).slice(0, 6));
+      } catch (err) {
+        console.error("Gagal refresh kegiatan:", err);
+      }
+    };
+    refreshKegiatan();
   }, [accessToken, loadingKegiatan]);
 
   const joinAndAddToCalendar = async (item: Kegiatan) => {
-    // Belum login → trigger Google OAuth
     if (!accessToken) {
-      await loginWithGoogle();
-      showToast("Login Berhasil", "Silakan klik tombol Ikut Kegiatan lagi.", true);
+      loginWithGoogle();
       return;
     }
 
     setAddingId(item.id);
     try {
-      // Step 1: Catat partisipan di database backend
       const joinRes = await fetch(`${API_URL}/api/activities/${item.id}/join`, {
         method: "POST",
         headers: {
@@ -283,13 +280,11 @@ function HomePageContent() {
         credentials: "include",
       });
 
-      // Kalau sudah join sebelumnya (409), tetap lanjut buka Calendar
       if (!joinRes.ok && joinRes.status !== 409) {
         const errData = await joinRes.json().catch(() => ({}));
         throw new Error(errData.message || "Gagal bergabung ke kegiatan");
       }
 
-      // Step 2: Buka Google Calendar add-event URL di tab baru
       const start =
         new Date(item.startTime).toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
       const end =
@@ -320,22 +315,15 @@ function HomePageContent() {
     }
   };
 
-  // Handler tombol Admin di footer — dengan pengecekan role
   const handleAdminClick = () => {
-    if (isLoading) return; // tunggu auth selesai
-
+    if (isLoading) return;
     if (!googleUser) {
-      // Belum login sama sekali → trigger login Google
-      // Redirect ke /admin/panel akan ditangani di GoogleAuthContext jika role ADMIN
       loginWithGoogle();
       return;
     }
-
     if (googleUser.role === "ADMIN") {
-      // Sudah login sebagai ADMIN → langsung masuk
       router.push("/admin/panel");
     } else {
-      // Sudah login tapi bukan ADMIN → tampilkan pesan ditolak
       showToast("Akses Ditolak", "Akun Anda tidak memiliki hak akses admin.", false);
     }
   };
@@ -510,18 +498,10 @@ function HomePageContent() {
                   }`}
                 >
                   <img src={p.icon} alt={p.label} className="w-10 h-10 object-contain" />
-                  <span
-                    className={`text-xs font-semibold ${
-                      isNext ? "text-white" : isPast ? "text-gray-300" : "text-gray-500"
-                    }`}
-                  >
+                  <span className={`text-xs font-semibold ${isNext ? "text-white" : isPast ? "text-gray-300" : "text-gray-500"}`}>
                     {p.label}
                   </span>
-                  <span
-                    className={`text-sm font-bold ${
-                      isNext ? "text-white" : isPast ? "text-gray-300" : "text-gray-800"
-                    }`}
-                  >
+                  <span className={`text-sm font-bold ${isNext ? "text-white" : isPast ? "text-gray-300" : "text-gray-800"}`}>
                     {timeVal}
                   </span>
                 </div>
@@ -540,11 +520,7 @@ function HomePageContent() {
             <h2 className="text-gray-800 text-2xl font-bold">Jam Buka Masjid</h2>
           </div>
           <div className="flex justify-center">
-            <div
-              className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold ${
-                isMasjidOpen ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
-              }`}
-            >
+            <div className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold ${isMasjidOpen ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
               <span className={`w-2.5 h-2.5 rounded-full ${isMasjidOpen ? "bg-green-500 animate-pulse" : "bg-gray-400"}`} />
               {isMasjidOpen ? "Masjid Saat Ini Buka" : "Masjid Saat Ini Tutup"}
             </div>
@@ -563,22 +539,11 @@ function HomePageContent() {
               opSchedule.map((item, idx) => {
                 const isToday = mounted && item.day === todayName;
                 return (
-                  <div
-                    key={item.id}
-                    className={`flex items-center justify-between px-5 py-4 ${isToday ? "bg-green-50" : "bg-white"} ${
-                      idx < opSchedule.length - 1 ? "border-b border-gray-100" : ""
-                    }`}
-                  >
+                  <div key={item.id} className={`flex items-center justify-between px-5 py-4 ${isToday ? "bg-green-50" : "bg-white"} ${idx < opSchedule.length - 1 ? "border-b border-gray-100" : ""}`}>
                     <div className="flex items-center gap-2">
                       {isToday && <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />}
-                      <span className={`text-sm ${isToday ? "font-bold text-gray-800" : "text-gray-600"}`}>
-                        {item.day}
-                      </span>
-                      {isToday && (
-                        <span className="text-[10px] bg-green-100 text-green-600 font-bold px-2 py-0.5 rounded-full">
-                          HARI INI
-                        </span>
-                      )}
+                      <span className={`text-sm ${isToday ? "font-bold text-gray-800" : "text-gray-600"}`}>{item.day}</span>
+                      {isToday && <span className="text-[10px] bg-green-100 text-green-600 font-bold px-2 py-0.5 rounded-full">HARI INI</span>}
                     </div>
                     {item.isClosed ? (
                       <span className="text-sm font-semibold text-red-500">Tutup</span>
@@ -601,8 +566,6 @@ function HomePageContent() {
           <p className="text-green-600 text-xs font-bold tracking-widest uppercase">Kegiatan Masjid</p>
           <h2 className="text-gray-800 text-2xl font-bold">Program dan Kegiatan</h2>
         </div>
-
-        {/* Card Google Calendar / Status Login */}
         <div className="bg-white rounded-2xl p-6 flex flex-col items-center gap-3 shadow-sm text-center max-w-md mx-auto w-full">
           <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center">
             <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -621,9 +584,7 @@ function HomePageContent() {
                 <p className="text-xs font-bold text-gray-800">{googleUser.name}</p>
                 <p className="text-[10px] text-gray-500">{googleUser.email}</p>
               </div>
-              <button onClick={logout} className="text-[10px] text-red-400 hover:text-red-600 ml-2 font-semibold">
-                Keluar
-              </button>
+              <button onClick={logout} className="text-[10px] text-red-400 hover:text-red-600 ml-2 font-semibold">Keluar</button>
             </div>
           ) : (
             <button
@@ -641,7 +602,6 @@ function HomePageContent() {
           )}
         </div>
 
-        {/* Grid kegiatan */}
         {loadingKegiatan ? (
           <div className="flex justify-center py-6">
             <div className="animate-spin w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full" />
@@ -742,11 +702,7 @@ function HomePageContent() {
                   onClick={() => router.push(`/user/berita-dan-artikel/${featuredArtikel.id}`)}
                 >
                   {featuredArtikel.imageUrl && (
-                    <img
-                      src={featuredArtikel.imageUrl}
-                      alt={featuredArtikel.title}
-                      className="w-full sm:w-64 h-52 sm:h-auto object-cover flex-shrink-0"
-                    />
+                    <img src={featuredArtikel.imageUrl} alt={featuredArtikel.title} className="w-full sm:w-64 h-52 sm:h-auto object-cover flex-shrink-0" />
                   )}
                   <div className="p-6 flex flex-col gap-2 justify-center">
                     <h3 className="text-lg font-bold text-gray-800 leading-snug">{featuredArtikel.title}</h3>
@@ -764,15 +720,11 @@ function HomePageContent() {
                     className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm flex flex-col cursor-pointer hover:shadow-md transition"
                     onClick={() => router.push(`/user/berita-dan-artikel/${item.id}`)}
                   >
-                    {item.imageUrl && (
-                      <img src={item.imageUrl} alt={item.title} className="w-full h-28 object-cover" />
-                    )}
+                    {item.imageUrl && <img src={item.imageUrl} alt={item.title} className="w-full h-28 object-cover" />}
                     <div className="p-3 flex flex-col gap-1">
                       <h3 className="text-xs font-bold text-gray-800 leading-snug line-clamp-2">{item.title}</h3>
                       <p className="text-[10px] text-gray-400">{formatTanggal(item.createdAt)}</p>
-                      {item.summary && (
-                        <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-3">{item.summary}</p>
-                      )}
+                      {item.summary && <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-3">{item.summary}</p>}
                     </div>
                   </div>
                 ))}
@@ -806,18 +758,15 @@ function HomePageContent() {
           <div className="flex-1 rounded-2xl overflow-hidden shadow-sm min-h-[280px] relative">
             <iframe
               src="https://www.google.com/maps/embed?pb=!1m17!1m12!1m3!1d395.08417811206493!2d16.373427959571636!3d48.22974577423544!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m2!1m1!2zNDjCsDEzJzQ3LjYiTiAxNsKwMjInMjQuMSJF!5e0!3m2!1sen!2sid!4v1779199933120!5m2!1sen!2sid"
-              width="100%"
-              height="100%"
+              width="100%" height="100%"
               style={{ border: 0, minHeight: "280px" }}
-              allowFullScreen
-              loading="lazy"
+              allowFullScreen loading="lazy"
               referrerPolicy="no-referrer-when-downgrade"
               className="absolute inset-0 w-full h-full"
             />
             <a
               href="https://maps.app.goo.gl/kQbPzPgabaKvMwMj9"
-              target="_blank"
-              rel="noopener noreferrer"
+              target="_blank" rel="noopener noreferrer"
               className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-white/90 backdrop-blur-sm border border-gray-200 rounded-full px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-white transition shadow"
             >
               <svg className="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -853,15 +802,9 @@ function HomePageContent() {
             <div className="bg-green-600 rounded-2xl p-5 flex flex-col gap-3">
               <h3 className="font-bold text-white text-sm">Petunjuk Arah</h3>
               <div className="flex flex-col gap-2 text-xs text-green-100">
-                <p>
-                  <span className="font-bold text-white">U-Bahn U6</span> — Stasiun Dresdner Straße, jalan kaki ±7 menit
-                </p>
-                <p>
-                  <span className="font-bold text-white">Tram 2</span> — Halte Gaußplatz, jalan kaki ±5 menit
-                </p>
-                <p>
-                  <span className="font-bold text-white">Bus 11A</span> — Halte Rauscherstraße (dekat masjid)
-                </p>
+                <p><span className="font-bold text-white">U-Bahn U6</span> — Stasiun Dresdner Straße, jalan kaki ±7 menit</p>
+                <p><span className="font-bold text-white">Tram 2</span> — Halte Gaußplatz, jalan kaki ±5 menit</p>
+                <p><span className="font-bold text-white">Bus 11A</span> — Halte Rauscherstraße (dekat masjid)</p>
                 <p>Parkir tersedia di sekitar Rauscherstraße dan Adalbert-Stifter-Straße</p>
               </div>
             </div>
@@ -920,11 +863,7 @@ function HomePageContent() {
                 <span className="text-white text-lg font-bold">Wapena</span>
               </div>
               <p className="text-green-200 text-sm">Warga Pengajian Austria</p>
-              <p className="text-green-200 text-sm leading-relaxed">
-                Forum Saling Asih &amp; Asuh Komunitas
-                <br />
-                Muslim Indonesia di Austria
-              </p>
+              <p className="text-green-200 text-sm leading-relaxed">Forum Saling Asih &amp; Asuh Komunitas<br />Muslim Indonesia di Austria</p>
               <p className="text-sm">
                 <span className="text-green-400 font-semibold">Address: </span>
                 <span className="text-green-200">Masjid As-Salam, Malfattigasse 18 – Lantai Dasar, 1120 Wina</span>
@@ -933,11 +872,7 @@ function HomePageContent() {
             <div className="flex flex-col gap-3">
               <h3 className="text-green-400 font-bold text-sm mb-1">Quick Links</h3>
               {quickLinks.map((link) => (
-                <span
-                  key={link.href}
-                  className="text-green-200 text-sm cursor-pointer hover:text-white transition"
-                  onClick={() => router.push(link.href)}
-                >
+                <span key={link.href} className="text-green-200 text-sm cursor-pointer hover:text-white transition" onClick={() => router.push(link.href)}>
                   {link.name}
                 </span>
               ))}
@@ -957,8 +892,6 @@ function HomePageContent() {
         <div className="border-t border-green-800 px-6 py-4">
           <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
             <p className="text-[#FFFFFF4D] text-xs">Copyright © 2020 Wapena. All Rights Reserved.</p>
-
-            {/* ── TOMBOL ADMIN ── */}
             <button
               onClick={handleAdminClick}
               disabled={isLoading}
