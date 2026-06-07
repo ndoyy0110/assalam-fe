@@ -32,21 +32,31 @@ export default function BeritaArtikelPage() {
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
-  const fetchNews = useCallback(async () => {
+useEffect(() => {
+  const fetchNews = async () => {
     try {
       setLoading(true);
       setError(null);
+
       const res = await fetch(`${API_URL}/api/news`);
       const json = await res.json();
-      if (!res.ok) throw new Error(json.message || "Gagal mengambil data");
+
+      if (!res.ok) {
+        throw new Error(json.message || "Gagal mengambil data");
+      }
+
       setData(json.data || []);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Gagal mengambil data");
+      setError(
+        err instanceof Error ? err.message : "Gagal mengambil data"
+      );
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
+  fetchNews();
+}, []);
   const published = data.filter((a) => a.status === "PUBLISHED");
   const featured = published[0] ?? null;
   const terbaru = published.slice(1, 3);
