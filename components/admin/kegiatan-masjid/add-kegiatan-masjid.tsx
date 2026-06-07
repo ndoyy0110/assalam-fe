@@ -32,13 +32,14 @@ export default function AddKegiatanMasjid() {
       return;
     }
 
-    // ✅ Cek token sebelum kirim
     const token = getAccessToken();
     if (!token) {
       setError("Access token tidak ditemukan! Silakan login ulang.");
       return;
     }
-
+    if (form.description.trim().length < 10) {
+      setError("Deskripsi minimal 10 karakter!"); return;
+    }
     setLoading(true);
     setError(null);
 

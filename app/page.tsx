@@ -162,15 +162,15 @@ function HomePageContent() {
   const [addingId, setAddingId] = useState<number | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const [toastVisible, setToastVisible] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const showToast = useCallback((title: string, subtitle: string, success: boolean) => {
     setToast({ title, subtitle, success });
-    setToastVisible(true); 
+    setToastVisible(true);
   }, []);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000);
@@ -219,7 +219,7 @@ function HomePageContent() {
   }, []);
 
   useEffect(() => {
-    const fetchKegiatan = async () => {
+    (async () => {
       try {
         const res = await fetch(`${API_URL}/api/activities`, { credentials: "include" });
         const json = await res.json();
@@ -229,12 +229,11 @@ function HomePageContent() {
       } finally {
         setLoadingKegiatan(false);
       }
-    };
-    fetchKegiatan();
+    })();
   }, []);
 
   useEffect(() => {
-    const fetchArtikel = async () => {
+    (async () => {
       try {
         const res = await fetch(`${API_URL}/api/news`, { credentials: "include" });
         const json = await res.json();
@@ -245,13 +244,12 @@ function HomePageContent() {
       } finally {
         setLoadingArtikel(false);
       }
-    };
-    fetchArtikel();
+    })();
   }, []);
 
   useEffect(() => {
     if (!accessToken || loadingKegiatan) return;
-    const refreshKegiatan = async () => {
+    (async () => {
       try {
         const res = await fetch(`${API_URL}/api/activities`, { credentials: "include" });
         const json = await res.json();
@@ -259,16 +257,52 @@ function HomePageContent() {
       } catch (err) {
         console.error("Gagal refresh kegiatan:", err);
       }
-    };
-    refreshKegiatan();
+    })();
   }, [accessToken, loadingKegiatan]);
+
+  // ── Hapus Akun ── 
+  const handleDeleteAccount = async () => {
+    if (!accessToken) return;
+    setDeletingAccount(true);
+    try {
+      const res = await fetch(`${API_URL}/api/auth/account`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        credentials: "include",
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.message || "Gagal menghapus akun");
+
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("googleUser");
+      type GoogleWindow = Window & {
+        google?: { accounts?: { id?: { disableAutoSelect: () => void } } };
+      };
+      const win = window as GoogleWindow;
+      if (win.google?.accounts?.id) {
+        win.google.accounts.id.disableAutoSelect();
+      }
+
+      setShowDeleteConfirm(false);
+      showToast("Akun Dihapus", "Akun Anda telah berhasil dihapus secara permanen.", true);
+
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 2500);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Gagal menghapus akun.";
+      setShowDeleteConfirm(false);
+      showToast("Gagal Hapus Akun", message, false);
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
 
   const joinAndAddToCalendar = async (item: Kegiatan) => {
     if (!accessToken) {
       loginWithGoogle();
       return;
     }
-
     setAddingId(item.id);
     try {
       const joinRes = await fetch(`${API_URL}/api/activities/${item.id}/join`, {
@@ -347,6 +381,8 @@ function HomePageContent() {
 
   const featuredArtikel = artikel[0] ?? null;
   const otherArtikel = artikel.slice(1, 5);
+
+  const userInitial = googleUser?.name?.charAt(0)?.toUpperCase() ?? "G";
 
   return (
     <div className="min-h-screen bg-[#F0FDF4] flex flex-col">
@@ -566,42 +602,119 @@ function HomePageContent() {
           <p className="text-green-600 text-xs font-bold tracking-widest uppercase">Kegiatan Masjid</p>
           <h2 className="text-gray-800 text-2xl font-bold">Program dan Kegiatan</h2>
         </div>
-        <div className="bg-white rounded-2xl p-6 flex flex-col items-center gap-3 shadow-sm text-center max-w-md mx-auto w-full">
-          <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center">
-            <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <rect x="3" y="4" width="18" height="18" rx="2" strokeWidth={2} />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4" />
-            </svg>
-          </div>
-          <p className="font-bold text-gray-800">Sinkronkan ke Google Calendar</p>
-          <p className="text-xs text-green-600 leading-relaxed max-w-xs">
-            Masuk dengan akun Google untuk ikut kegiatan masjid dan menambahkannya ke kalender Anda secara otomatis.
-          </p>
+
+        {/* ── CARD LOGIN / USER INFO ── */}
+        <div className="bg-white rounded-2xl p-5 shadow-sm max-w-md mx-auto w-full">
           {googleUser ? (
-            <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-full px-4 py-2 w-full justify-center">
-              <img src={googleUser.picture} alt={googleUser.name} className="w-6 h-6 rounded-full" />
-              <div className="text-left">
-                <p className="text-xs font-bold text-gray-800">{googleUser.name}</p>
-                <p className="text-[10px] text-gray-500">{googleUser.email}</p>
+            <div className="flex flex-col gap-4">
+              {/* Info user */}
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                  {googleUser.picture ? (
+                    <img src={googleUser.picture} alt={googleUser.name} className="w-10 h-10 rounded-full object-cover" />
+                  ) : (
+                    <span className="text-white font-bold text-sm">{userInitial}</span>
+                  )}
+                </div>
+                <div className="flex flex-col">
+                  <p className="text-sm font-bold text-gray-800">Terhubung dengan Google</p>
+                  <p className="text-xs text-gray-400">Klik tombol kalender pada kegiatan untuk menyinkronkan</p>
+                </div>
               </div>
-              <button onClick={logout} className="text-[10px] text-red-400 hover:text-red-600 ml-2 font-semibold">Keluar</button>
+
+              <div className="border-t border-gray-100" />
+
+              {/* Tombol aksi */}
+              <div className="flex gap-3">
+                <button
+                  onClick={logout}
+                  className="flex-1 flex items-center justify-center gap-2 border border-gray-200 rounded-full py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                  Keluar
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="flex-1 flex items-center justify-center gap-2 border border-red-200 rounded-full py-2 text-sm font-semibold text-red-500 hover:bg-red-50 transition"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Hapus Akun
+                </button>
+              </div>
+
+              {/* ── MODAL HAPUS AKUN ── */}
+              {showDeleteConfirm && (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+                  <div className="bg-white rounded-2xl p-8 w-full max-w-sm shadow-xl flex flex-col gap-5 text-center">
+                    <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto">
+                      <svg className="w-7 h-7 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-gray-800 mb-1">Hapus Akun?</h2>
+                      <p className="text-sm text-gray-500 leading-relaxed">
+                        Akun Anda akan dihapus secara permanen dan tidak dapat dikembalikan. Yakin ingin melanjutkan?
+                      </p>
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setShowDeleteConfirm(false)}
+                        disabled={deletingAccount}
+                        className="flex-1 py-2.5 rounded-full bg-gray-100 text-gray-700 text-sm font-semibold hover:bg-gray-200 disabled:opacity-50 transition"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        onClick={handleDeleteAccount}
+                        disabled={deletingAccount}
+                        className="flex-1 py-2.5 rounded-full bg-red-500 text-white text-sm font-semibold hover:bg-red-600 disabled:opacity-50 transition flex items-center justify-center gap-2"
+                      >
+                        {deletingAccount && (
+                          <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                        )}
+                        {deletingAccount ? "Menghapus..." : "Ya, Hapus"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
             </div>
           ) : (
-            <button
-              onClick={() => loginWithGoogle()}
-              className="flex items-center gap-2 border border-gray-200 rounded-full px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-              </svg>
-              Masuk dengan Google
-            </button>
+            <div className="flex flex-col items-center gap-3 text-center py-1">
+              <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center">
+                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <rect x="3" y="4" width="18" height="18" rx="2" strokeWidth={2} />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4" />
+                </svg>
+              </div>
+              <p className="font-bold text-gray-800">Sinkronkan ke Google Calendar</p>
+              <p className="text-xs text-green-600 leading-relaxed max-w-xs">
+                Masuk dengan akun Google untuk ikut kegiatan masjid dan menambahkannya ke kalender Anda secara otomatis.
+              </p>
+              <button
+                onClick={() => loginWithGoogle()}
+                className="flex items-center gap-2 border border-gray-200 rounded-full px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                </svg>
+                Masuk dengan Google
+              </button>
+            </div>
           )}
         </div>
 
+        {/* Grid kegiatan */}
         {loadingKegiatan ? (
           <div className="flex justify-center py-6">
             <div className="animate-spin w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full" />

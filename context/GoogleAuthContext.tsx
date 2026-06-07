@@ -1,10 +1,28 @@
 "use client";
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://assalam-be-production-341d.up.railway.app";
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!;
+
+type GoogleWindow = Window & {
+  google?: {
+    accounts?: {
+      id?: {
+        initialize: (config: object) => void;
+        renderButton: (el: HTMLElement, config: object) => void;
+        disableAutoSelect: () => void;
+      };
+      oauth2?: {
+        initTokenClient: (config: {
+          client_id: string;
+          scope: string;
+          callback: (response: { access_token?: string; error?: string }) => void;
+        }) => { requestAccessToken: () => void };
+      };
+    };
+  };
+};
 
 interface GoogleUser {
   id: number;
@@ -17,6 +35,8 @@ interface GoogleUser {
 interface GoogleAuthContextType {
   googleUser: GoogleUser | null;
   accessToken: string | null;
+  googleCalendarToken: string | null;
+  requestCalendarToken: () => void;
   loginWithGoogle: () => void;
   logout: () => Promise<void>;
   isLoading: boolean;
@@ -25,16 +45,17 @@ interface GoogleAuthContextType {
 const GoogleAuthContext = createContext<GoogleAuthContextType | undefined>(undefined);
 
 let memoryAccessToken: string | null = null;
+let memoryCalendarToken: string | null = null;
 
 export function GoogleAuthProvider({ children }: { children: ReactNode }) {
   const [googleUser, setGoogleUser] = useState<GoogleUser | null>(null);
+  const [googleCalendarToken, setGoogleCalendarToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     try {
       const savedToken = localStorage.getItem("accessToken");
       const savedUser = localStorage.getItem("googleUser");
-
       if (savedToken && savedUser) {
         memoryAccessToken = savedToken;
         setGoogleUser(JSON.parse(savedUser));
@@ -66,7 +87,6 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
       memoryAccessToken = token;
       localStorage.setItem("accessToken", token);
       localStorage.setItem("googleUser", JSON.stringify(user));
-
       setGoogleUser(user);
 
       if (user.role === "ADMIN") {
@@ -84,7 +104,8 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
     if (typeof window === "undefined") return;
 
     const initGoogle = () => {
-      (window as any).google.accounts.id.initialize({
+      const win = window as GoogleWindow;
+      win.google?.accounts?.id?.initialize({
         client_id: GOOGLE_CLIENT_ID,
         callback: handleCredentialResponse,
         auto_select: false,
@@ -93,7 +114,7 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
 
       const container = document.getElementById("g_id_signin_container");
       if (container) {
-        (window as any).google.accounts.id.renderButton(container, {
+        win.google?.accounts?.id?.renderButton(container, {
           type: "standard",
           theme: "outline",
           size: "large",
@@ -104,7 +125,8 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    if ((window as any).google?.accounts?.id) {
+    const win = window as GoogleWindow;
+    if (win.google?.accounts?.id) {
       initGoogle();
     } else {
       const script = document.createElement("script");
@@ -128,6 +150,24 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // ── Request Google OAuth token khusus Calendar scope ──
+  const requestCalendarToken = useCallback(() => {
+    const win = window as GoogleWindow;
+    const tokenClient = win.google?.accounts?.oauth2?.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: "https://www.googleapis.com/auth/calendar.events",
+      callback: (response) => {
+        if (response.access_token) {
+          memoryCalendarToken = response.access_token;
+          setGoogleCalendarToken(response.access_token);
+        } else {
+          console.error("Calendar token error:", response.error);
+        }
+      },
+    });
+    tokenClient?.requestAccessToken();
+  }, []);
+
   const logout = async () => {
     try {
       if (memoryAccessToken) {
@@ -141,12 +181,13 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
       console.error("Logout error:", error);
     } finally {
       memoryAccessToken = null;
+      memoryCalendarToken = null;
       localStorage.removeItem("accessToken");
       localStorage.removeItem("googleUser");
       setGoogleUser(null);
-      if ((window as any).google?.accounts?.id) {
-        (window as any).google.accounts.id.disableAutoSelect();
-      }
+      setGoogleCalendarToken(null);
+      const win = window as GoogleWindow;
+      win.google?.accounts?.id?.disableAutoSelect();
       window.location.href = "/";
     }
   };
@@ -156,6 +197,8 @@ export function GoogleAuthProvider({ children }: { children: ReactNode }) {
       value={{
         googleUser,
         accessToken: memoryAccessToken,
+        googleCalendarToken,
+        requestCalendarToken,
         loginWithGoogle,
         logout,
         isLoading,
@@ -183,3 +226,4 @@ export function useGoogleAuth() {
 }
 
 export const getAccessToken = () => memoryAccessToken;
+export const getCalendarToken = () => memoryCalendarToken;

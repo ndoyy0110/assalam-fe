@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Clock } from "lucide-react";
+import { getAccessToken } from "@/context/GoogleAuthContext";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
@@ -29,29 +30,34 @@ const DEFAULT_DAYS: Omit<OperationalHour, "id">[] = [
   { day: "Minggu", open: "04:00", close: "21:00", isClosed: false },
 ];
 
+// Helper: header dengan token
+const authHeaders = () => {
+  const token = getAccessToken();
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+};
+
 export default function JadwalOperasional() {
   const [schedule, setSchedule] = useState<DaySchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+
   const seedDefaultData = async () => {
     try {
       for (const d of DEFAULT_DAYS) {
         await fetch(`${API_URL}/api/operational-hours`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: authHeaders(),
           body: JSON.stringify(d),
         });
       }
-
       await fetchSchedule(true);
     } catch {
       setSchedule(
-        DEFAULT_DAYS.map((d, i) => ({
-          ...d,
-          id: i + 1,
-          editing: false,
-        }))
+        DEFAULT_DAYS.map((d, i) => ({ ...d, id: i + 1, editing: false }))
       );
     }
   };
@@ -68,20 +74,13 @@ export default function JadwalOperasional() {
 
       if (json.data && json.data.length > 0) {
         setSchedule(
-          json.data.map((item: OperationalHour) => ({
-            ...item,
-            editing: false,
-          }))
+          json.data.map((item: OperationalHour) => ({ ...item, editing: false }))
         );
       } else if (!isAfterSeed) {
         await seedDefaultData();
       } else {
         setSchedule(
-          DEFAULT_DAYS.map((d, i) => ({
-            ...d,
-            id: i + 1,
-            editing: false,
-          }))
+          DEFAULT_DAYS.map((d, i) => ({ ...d, id: i + 1, editing: false }))
         );
       }
     } catch (err: unknown) {
@@ -96,27 +95,21 @@ export default function JadwalOperasional() {
     const newIsClosed = !day.isClosed;
 
     setSchedule((prev) =>
-      prev.map((d, i) =>
-        i === index ? { ...d, isClosed: newIsClosed } : d
-      )
+      prev.map((d, i) => (i === index ? { ...d, isClosed: newIsClosed } : d))
     );
 
     try {
-      const res = await fetch(
-        `${API_URL}/api/operational-hours/${day.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ isClosed: newIsClosed }),
-        }
-      );
+      const res = await fetch(`${API_URL}/api/operational-hours/${day.id}`, {
+        method: "PUT",
+        headers: authHeaders(), // ✅ token disertakan
+        body: JSON.stringify({ isClosed: newIsClosed }),
+      });
 
       if (!res.ok) throw new Error("Gagal update");
     } catch {
+      // Rollback jika gagal
       setSchedule((prev) =>
-        prev.map((d, i) =>
-          i === index ? { ...d, isClosed: day.isClosed } : d
-        )
+        prev.map((d, i) => (i === index ? { ...d, isClosed: day.isClosed } : d))
       );
       setError("Gagal mengubah status hari. Coba lagi.");
     }
@@ -124,21 +117,13 @@ export default function JadwalOperasional() {
 
   const toggleEdit = (index: number) => {
     setSchedule((prev) =>
-      prev.map((d, i) =>
-        i === index ? { ...d, editing: !d.editing } : d
-      )
+      prev.map((d, i) => (i === index ? { ...d, editing: !d.editing } : d))
     );
   };
 
-  const updateTime = (
-    index: number,
-    field: "open" | "close",
-    value: string
-  ) => {
+  const updateTime = (index: number, field: "open" | "close", value: string) => {
     setSchedule((prev) =>
-      prev.map((d, i) =>
-        i === index ? { ...d, [field]: value } : d
-      )
+      prev.map((d, i) => (i === index ? { ...d, [field]: value } : d))
     );
   };
 
@@ -148,38 +133,33 @@ export default function JadwalOperasional() {
     setError(null);
 
     try {
-      const res = await fetch(
-        `${API_URL}/api/operational-hours/${day.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            open: day.open,
-            close: day.close,
-            isClosed: day.isClosed,
-          }),
-        }
-      );
+      const res = await fetch(`${API_URL}/api/operational-hours/${day.id}`, {
+        method: "PUT",
+        headers: authHeaders(), // ✅ token disertakan
+        body: JSON.stringify({
+          open: day.open,
+          close: day.close,
+          isClosed: day.isClosed,
+        }),
+      });
 
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || "Gagal menyimpan");
 
       setSchedule((prev) =>
-        prev.map((d, i) =>
-          i === index ? { ...d, editing: false } : d
-        )
+        prev.map((d, i) => (i === index ? { ...d, editing: false } : d))
       );
     } catch (err: unknown) {
-      setError(
-        err instanceof Error ? err.message : "Gagal menyimpan"
-      );
+      setError(err instanceof Error ? err.message : "Gagal menyimpan");
     } finally {
       setSaving(null);
     }
   };
 
   useEffect(() => {
-    fetchSchedule();
+    (async () => {
+      await fetchSchedule();
+    })();
   }, []);
 
   if (loading) {
@@ -189,7 +169,6 @@ export default function JadwalOperasional() {
           <Clock size={20} />
           <h2 className="text-lg font-semibold">Jadwal Mingguan</h2>
         </div>
-
         <div className="bg-white p-10 text-center text-gray-400">
           <div className="animate-spin inline-block w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full mb-2" />
           <p>Memuat jadwal...</p>
@@ -228,8 +207,7 @@ export default function JadwalOperasional() {
               <div className="flex-1 text-end pr-4">
                 {!day.isClosed ? (
                   <span className="text-[#16A34A]">
-                    {day.open?.replace(":", ".")} -{" "}
-                    {day.close?.replace(":", ".")}
+                    {day.open?.replace(":", ".")} – {day.close?.replace(":", ".")}
                   </span>
                 ) : (
                   <span className="text-[#D4183D]">Tutup</span>
@@ -240,9 +218,7 @@ export default function JadwalOperasional() {
                 <button
                   onClick={() => toggleDay(index)}
                   className={`w-12 h-6 flex items-center rounded-full p-1 transition ${
-                    !day.isClosed
-                      ? "bg-[#16A34A]"
-                      : "bg-gray-400"
+                    !day.isClosed ? "bg-[#16A34A]" : "bg-gray-400"
                   }`}
                 >
                   <div
@@ -264,29 +240,21 @@ export default function JadwalOperasional() {
             {day.editing && (
               <div className="px-6 pb-6 grid grid-cols-2 gap-6">
                 <div>
-                  <label className="text-sm text-gray-500">
-                    Jam Buka
-                  </label>
+                  <label className="text-sm text-gray-500">Jam Buka</label>
                   <input
                     type="time"
                     value={day.open}
-                    onChange={(e) =>
-                      updateTime(index, "open", e.target.value)
-                    }
+                    onChange={(e) => updateTime(index, "open", e.target.value)}
                     className="w-full mt-2 bg-green-100 rounded-lg px-3 py-2"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm text-gray-500">
-                    Jam Tutup
-                  </label>
+                  <label className="text-sm text-gray-500">Jam Tutup</label>
                   <input
                     type="time"
                     value={day.close}
-                    onChange={(e) =>
-                      updateTime(index, "close", e.target.value)
-                    }
+                    onChange={(e) => updateTime(index, "close", e.target.value)}
                     className="w-full mt-2 bg-green-100 rounded-lg px-3 py-2"
                   />
                 </div>
@@ -307,9 +275,7 @@ export default function JadwalOperasional() {
                     {saving === index && (
                       <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
                     )}
-                    {saving === index
-                      ? "Menyimpan..."
-                      : "Simpan"}
+                    {saving === index ? "Menyimpan..." : "Simpan"}
                   </button>
                 </div>
               </div>

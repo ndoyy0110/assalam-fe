@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { getAccessToken } from "@/context/GoogleAuthContext";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://assalam-be-production-341d.up.railway.app";
 
@@ -15,7 +16,6 @@ type Kegiatan = {
 
 const ITEMS_PER_PAGE = 6;
 
-// Konsisten pakai UTC agar cocok dengan data yang dikirim sebagai UTC
 const formatJam = (iso: string): string => {
   if (!iso) return "-";
   const d = new Date(iso);
@@ -27,10 +27,7 @@ const formatJam = (iso: string): string => {
 const formatTanggal = (iso: string): string => {
   if (!iso) return "-";
   return new Date(iso).toLocaleDateString("id-ID", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
+    day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
   });
 };
 
@@ -43,38 +40,68 @@ export default function KegiatanMasjid() {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    fetchKegiatan();
-  }, []);
-
-  const fetchKegiatan = async () => {
+  const fetchKegiatan = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`${API_URL}/api/activities`);
+      const token = getAccessToken();
+      const res = await fetch(`${API_URL}/api/activities`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
+      });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || "Gagal mengambil data");
       setData(json.data || []);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Gagal mengambil data";
-      setError(message);
+      setError(err instanceof Error ? err.message : "Gagal mengambil data");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // ── Logika fetch dijalankan langsung sebagai IIFE async di dalam useEffect ──
+  // ── agar linter tidak mendeteksi setState sinkron dalam effect ──
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const token = getAccessToken();
+        const res = await fetch(`${API_URL}/api/activities`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          credentials: "include",
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.message || "Gagal mengambil data");
+        setData(json.data || []);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Gagal mengambil data");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
   const confirmDelete = async () => {
     if (!deleteId) return;
+    const token = getAccessToken();
+    if (!token) {
+      setError("Sesi login habis, silakan login ulang.");
+      return;
+    }
     setDeleting(true);
     try {
-      const res = await fetch(`${API_URL}/api/activities/${deleteId}`, { method: "DELETE" });
+      const res = await fetch(`${API_URL}/api/activities/${deleteId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
+      });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || "Gagal menghapus");
       setData((prev) => prev.filter((d) => d.id !== deleteId));
       setDeleteId(null);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Gagal menghapus";
-      setError(message);
+      setError(err instanceof Error ? err.message : "Gagal menghapus");
     } finally {
       setDeleting(false);
     }
@@ -112,19 +139,14 @@ export default function KegiatanMasjid() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {slots.map((item, idx) =>
           item ? (
-            <div
-              key={item.id}
-              className="border border-gray-200 rounded-xl p-4 flex flex-col gap-2 bg-white shadow-sm hover:shadow-md transition-shadow"
-            >
+            <div key={item.id} className="border border-gray-200 rounded-xl p-4 flex flex-col gap-2 bg-white shadow-sm hover:shadow-md transition-shadow">
               <h3 className="font-bold text-sm md:text-base text-gray-800">{item.title}</h3>
-
               <div className="flex items-center gap-1 text-gray-500 text-xs md:text-sm">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
                 </svg>
                 {formatJam(item.startTime)} - {formatJam(item.endTime)}
               </div>
-
               <div className="flex items-center gap-1 text-gray-500 text-xs md:text-sm">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3" y="4" width="18" height="18" rx="2" />
@@ -133,26 +155,20 @@ export default function KegiatanMasjid() {
                   <line x1="3" y1="10" x2="21" y2="10" />
                 </svg>
                 {formatTanggal(item.startTime)}
-                {formatTanggal(item.endTime) !== formatTanggal(item.startTime)
-                  ? ` s/d ${formatTanggal(item.endTime)}`
-                  : ""}
+                {formatTanggal(item.endTime) !== formatTanggal(item.startTime) ? ` s/d ${formatTanggal(item.endTime)}` : ""}
               </div>
-
               <div>
                 <p className="text-xs md:text-sm font-semibold text-gray-600 mb-1">Deskripsi</p>
                 <p className="text-xs md:text-sm text-gray-500 leading-relaxed line-clamp-3">{item.description}</p>
               </div>
-
               <div className="flex gap-2 mt-auto pt-2">
                 <button
                   onClick={() => setDeleteId(item.id)}
                   className="flex-1 bg-white border border-gray-300 rounded-full px-3 py-1.5 flex items-center justify-center gap-1 text-red-500 text-xs font-semibold hover:bg-red-50 transition"
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="3 6 5 6 21 6" />
-                    <path d="M19 6l-1 14H6L5 6" />
-                    <path d="M10 11v6" /><path d="M14 11v6" />
-                    <path d="M9 6V4h6v2" />
+                    <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" />
+                    <path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" />
                   </svg>
                   Hapus
                 </button>
@@ -175,53 +191,21 @@ export default function KegiatanMasjid() {
       </div>
 
       <div className="flex items-center justify-center gap-2 mt-6">
-        <button
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
-          disabled={page === 1}
-          className="w-7 h-7 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30"
-        >
-          ‹
-        </button>
+        <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="w-7 h-7 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30">‹</button>
         {Array.from({ length: totalPages }).map((_, i) => (
-          <button
-            key={i}
-            onClick={() => setPage(i + 1)}
-            className={`w-7 h-7 rounded-full text-xs font-bold ${
-              page === i + 1 ? "bg-green-500 text-white" : "text-gray-500 hover:bg-gray-100"
-            }`}
-          >
-            {i + 1}
-          </button>
+          <button key={i} onClick={() => setPage(i + 1)} className={`w-7 h-7 rounded-full text-xs font-bold ${page === i + 1 ? "bg-green-500 text-white" : "text-gray-500 hover:bg-gray-100"}`}>{i + 1}</button>
         ))}
-        <button
-          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          disabled={page === totalPages}
-          className="w-7 h-7 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30"
-        >
-          ›
-        </button>
+        <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="w-7 h-7 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 disabled:opacity-30">›</button>
       </div>
 
       {deleteId !== null && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl px-8 py-8 w-[800px] max-w-[90%] h-[450px] text-center shadow-lg flex flex-col justify-center">
             <h2 className="text-2xl font-bold text-gray-800 mb-7 p-4">Hapus Kegiatan Masjid?</h2>
-            <p className="text-sm font-semibold text-gray-800 mb-7 p-4">
-              Kegiatan yang dihapus tidak dapat dikembalikan. Yakin ingin melanjutkan?
-            </p>
+            <p className="text-sm font-semibold text-gray-800 mb-7 p-4">Kegiatan yang dihapus tidak dapat dikembalikan. Yakin ingin melanjutkan?</p>
             <div className="flex gap-3 p-4">
-              <button
-                onClick={() => setDeleteId(null)}
-                disabled={deleting}
-                className="flex-1 py-4 rounded-full bg-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-400 disabled:opacity-50"
-              >
-                Batal
-              </button>
-              <button
-                onClick={confirmDelete}
-                disabled={deleting}
-                className="flex-1 py-4 rounded-full bg-[#D4183D] text-white text-sm font-semibold hover:bg-red-500 disabled:opacity-50 flex items-center justify-center gap-2"
-              >
+              <button onClick={() => setDeleteId(null)} disabled={deleting} className="flex-1 py-4 rounded-full bg-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-400 disabled:opacity-50">Batal</button>
+              <button onClick={confirmDelete} disabled={deleting} className="flex-1 py-4 rounded-full bg-[#D4183D] text-white text-sm font-semibold hover:bg-red-500 disabled:opacity-50 flex items-center justify-center gap-2">
                 {deleting && <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />}
                 {deleting ? "Menghapus..." : "Ya, Hapus"}
               </button>

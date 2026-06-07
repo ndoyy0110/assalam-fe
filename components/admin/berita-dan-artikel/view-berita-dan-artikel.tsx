@@ -30,31 +30,23 @@ export default function ViewBeritaArtikel() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!id) {
-      setError("ID artikel tidak ditemukan.");
-      setLoading(false);
-      return;
-    }
-
-    const fetch_ = async () => {
+    (async () => {
+      if (!id) {
+        setError("ID artikel tidak ditemukan.");
+        setLoading(false);
+        return;
+      }
       try {
         const res = await fetch(`${API_URL}/api/news/${id}`);
         const json = await res.json();
-
-        if (!res.ok)
-          throw new Error(json.message || "Gagal mengambil data");
-
+        if (!res.ok) throw new Error(json.message || "Gagal mengambil data");
         setArtikel(json.data);
       } catch (err: unknown) {
-        setError(
-          err instanceof Error ? err.message : "Gagal mengambil data"
-        );
+        setError(err instanceof Error ? err.message : "Gagal mengambil data");
       } finally {
         setLoading(false);
       }
-    };
-
-    fetch_();
+    })();
   }, [id]);
 
   if (loading)

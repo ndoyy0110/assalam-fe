@@ -2,13 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { getAccessToken } from "@/context/GoogleAuthContext";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://assalam-be-production-341d.up.railway.app";
 
-// Ambil tanggal dari ISO → "YYYY-MM-DD"
 const isoToDate = (iso: string): string => iso?.slice(0, 10) || "";
 
-// Ambil waktu dari ISO → "HH:mm" dalam UTC
 const isoToTime = (iso: string): string => {
   if (!iso) return "";
   const d = new Date(iso);
@@ -38,13 +37,15 @@ export default function EditKegiatanMasjid() {
     const fetchDetail = async () => {
       try {
         setLoading(true);
-
-        const res = await fetch(`${API_URL}/api/activities/${id}`);
+        const token = getAccessToken();
+        const res = await fetch(`${API_URL}/api/activities/${id}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          credentials: "include",
+        });
         const json = await res.json();
         if (!res.ok) throw new Error(json.message || "Gagal mengambil data");
 
         const d = json.data;
-
         setForm({
           title: d.title || "",
           description: d.description || "",
@@ -76,23 +77,32 @@ export default function EditKegiatanMasjid() {
       return;
     }
 
+    const token = getAccessToken();
+    if (!token) {
+      setError("Sesi login habis, silakan login ulang.");
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
     try {
-      // BE butuh field terpisah: startDate, startTime, endDate, endTime
       const body = {
         title: form.title,
         description: form.description,
-        startDate: form.startDate,   // "YYYY-MM-DD"
-        startTime: form.startTime,   // "HH:mm"
-        endDate: form.endDate,       // "YYYY-MM-DD"
-        endTime: form.endTime,       // "HH:mm"
+        startDate: form.startDate,
+        startTime: form.startTime,
+        endDate: form.endDate,
+        endTime: form.endTime,
       };
 
       const res = await fetch(`${API_URL}/api/activities/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`, // ✅ kirim token
+        },
+        credentials: "include",
         body: JSON.stringify(body),
       });
 
