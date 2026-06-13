@@ -812,7 +812,7 @@ function HomePageContent() {
               {featuredArtikel && (
                 <div
                   className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm flex flex-col sm:flex-row cursor-pointer hover:shadow-md transition"
-                  onClick={() => router.push(`/user/berita-dan-artikel/${featuredArtikel.id}`)}
+                  onClick={() => router.push(`/user/berita-dan-artikel/view/${featuredArtikel.id}`)}
                 >
                   {featuredArtikel.imageUrl && (
                     <img src={featuredArtikel.imageUrl} alt={featuredArtikel.title} className="w-full sm:w-64 h-52 sm:h-auto object-cover flex-shrink-0" />
