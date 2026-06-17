@@ -57,6 +57,7 @@ useEffect(() => {
 
   fetchNews();
 }, []);
+
   const published = data.filter((a) => a.status === "PUBLISHED");
   const featured = published[0] ?? null;
   const terbaru = published.slice(1, 3);
