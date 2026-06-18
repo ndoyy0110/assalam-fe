@@ -61,7 +61,7 @@ export default function KegiatanMasjid() {
       const res = await fetch(`${API_URL}/api/activities`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || "Gagal mengambil data");
-      setData(json.data || []);
+      setData((json.data || []).sort((a: Kegiatan, b: Kegiatan) => b.id - a.id));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Gagal mengambil data");
     } finally {
@@ -70,25 +70,25 @@ export default function KegiatanMasjid() {
   }, []);
 
   useEffect(() => {
-  let cancelled = false;
+    let cancelled = false;
 
-  const load = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const res = await fetch(`${API_URL}/api/activities`);
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message || "Gagal mengambil data");
-      if (!cancelled) setData(json.data || []);
-    } catch (err: unknown) {
-      if (!cancelled) setError(err instanceof Error ? err.message : "Gagal mengambil data");
-    } finally {
-      if (!cancelled) setLoading(false);
-    }
-  };
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await fetch(`${API_URL}/api/activities`);
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.message || "Gagal mengambil data");
+        if (!cancelled) setData((json.data || []).sort((a: Kegiatan, b: Kegiatan) => b.id - a.id));
+      } catch (err: unknown) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Gagal mengambil data");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
 
-  load();
-  return () => { cancelled = true; };
+    load();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -237,7 +237,7 @@ export default function KegiatanMasjid() {
               key={item.id}
               className="border border-gray-200 rounded-xl p-4 flex flex-col gap-2 bg-white shadow-sm hover:shadow-md transition-shadow"
             >
-              <h3 className="font-bold text-sm md:text-base text-gray-800">{item.title}</h3>
+              <h3 className="font-bold text-sm md:text-base text-gray-800 break-all">{item.title}</h3>
 
               <div className="flex items-center gap-1 text-gray-500 text-xs md:text-sm">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
