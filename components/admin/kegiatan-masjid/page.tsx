@@ -140,7 +140,7 @@ export default function KegiatanMasjid() {
         {slots.map((item, idx) =>
           item ? (
             <div key={item.id} className="border border-gray-200 rounded-xl p-4 flex flex-col gap-2 bg-white shadow-sm hover:shadow-md transition-shadow">
-              <h3 className="font-bold text-sm md:text-base text-gray-800">{item.title}</h3>
+              <h3 className="font-bold text-sm md:text-base text-gray-800 break-all">{item.title}</h3>
               <div className="flex items-center gap-1 text-gray-500 text-xs md:text-sm">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
